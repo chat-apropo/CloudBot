@@ -34,14 +34,3 @@ def test_missing_config(
         "Thank you for "
         "using CloudBot!\n"
     )
-
-
-def test_save(mock_bot_factory, tmp_path, event_loop):
-    config_file = tmp_path / "config.json"
-    config_file.write_text("{}", encoding="utf-8")
-    bot = mock_bot_factory(loop=event_loop)
-    config = Config(bot, filename=str(config_file))
-    config["foo"] = "bar"
-    config.save_config()
-
-    assert config_file.read_text(encoding="utf-8") == '{\n    "foo": "bar"\n}'

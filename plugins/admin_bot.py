@@ -143,14 +143,8 @@ async def remove_permission_user(text, event, bot, conn, notice, reply):
         reply("No masks with elevated permissions matched {}".format(user))
         return
 
-    changed = False
     for group in groups:
-        if remove_user_from_group(user, group, event):
-            changed = True
-
-    if changed:
-        bot.config.save_config()
-        perm_manager.reload()
+        remove_user_from_group(user, group, event)
 
 
 @hook.command("adduser", permissions=["permissions_users"])
@@ -191,9 +185,6 @@ async def add_permissions_user(text, nick, conn, bot, notice, reply, admin_log):
                 nick, group, user
             )
         )
-
-    bot.config.save_config()
-    permission_manager.reload()
 
 
 @hook.command("stopthebot", permissions=["botcontrol"])
