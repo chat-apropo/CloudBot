@@ -96,7 +96,7 @@ async def get_user_groups(event):
     return "User {} is in no permission groups".format(user)
 
 
-def remove_user_from_group(user, group, event):
+def remove_user_from_group(user, group: str, event):
     permission_manager = event.conn.permissions
     changed_masks = permission_manager.remove_group_user(
         group.lower(), user.lower()
@@ -114,15 +114,15 @@ def remove_user_from_group(user, group, event):
 
 
 @hook.command("deluser", permissions=["permissions_users"])
-async def remove_permission_user(text, event, bot, conn, notice, reply):
+async def remove_permission_user(text, event, conn):
     """<user> [group] - removes <user> from [group], or from all groups if no group is specified"""
     split = text.split()
     if len(split) > 2:
-        notice("Too many arguments")
+        event.notice("Too many arguments")
         return
 
     if not split:
-        notice("Not enough arguments")
+        event.notice("Not enough arguments")
         return
 
     perm_manager = conn.permissions
@@ -131,16 +131,17 @@ async def remove_permission_user(text, event, bot, conn, notice, reply):
         group = split[1]
 
         if group and not perm_manager.group_exists(group.lower()):
-            notice("Unknown group '{}'".format(group))
+            event.notice("Unknown group '{}'".format(group))
             return
 
         groups = [group] if perm_manager.user_in_group(user, group) else []
     else:
-        group = None
-        groups = perm_manager.get_user_groups(user.lower())
+        groups = [g.name for g in perm_manager.get_user_groups(user.lower())]
 
     if not groups:
-        reply("No masks with elevated permissions matched {}".format(user))
+        event.reply(
+            "No masks with elevated permissions matched {}".format(user)
+        )
         return
 
     for group in groups:

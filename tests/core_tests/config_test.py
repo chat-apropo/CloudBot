@@ -34,3 +34,16 @@ def test_missing_config(
         "Thank you for "
         "using CloudBot!\n"
     )
+
+
+def test_loads(
+    tmp_path,
+    mock_sleep,
+    event_loop,
+    mock_bot_factory,
+):
+    config_file = tmp_path / "config.json"
+    config_file.write_text('{"a":1}')
+    bot = mock_bot_factory(loop=event_loop)
+    conf = Config(bot, filename=str(config_file))
+    assert dict(conf) == {"a": 1}
