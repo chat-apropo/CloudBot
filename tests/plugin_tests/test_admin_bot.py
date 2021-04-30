@@ -164,3 +164,135 @@ async def test_remove_permission_user(mock_db):
         ("foo", "bar", False),
         ("foo1", "bar", False),
     ]
+
+
+@pytest.mark.asyncio
+async def test_remove_permission_user_too_many_args(mock_db):
+    conn = MockConn(nick="testconn")
+
+    session = mock_db.session()
+
+    group_table = Group.__table__
+    group_member_table = GroupMember.__table__
+    permission_table = GroupPermission.__table__
+
+    group_table.create(mock_db.engine)
+    group_member_table.create(mock_db.engine)
+    permission_table.create(mock_db.engine)
+
+    manager = PermissionManager(conn)
+    conn.permissions = manager
+    perm = "bar"
+    group = Group(
+        name="foo",
+        perms=[GroupPermission(name=perm)],
+        members=[GroupMember(mask="thing")],
+    )
+
+    group1 = Group(
+        name="foo1",
+        perms=[GroupPermission(name=perm)],
+        members=[GroupMember(mask="thing1")],
+    )
+
+    session.add(group)
+    session.add(group1)
+
+    session.commit()
+    event = MagicMock()
+    event.conn = conn
+    event.nick = "foo"
+
+    assert mock_db.get_data(group_table) == [("foo", False), ("foo1", False)]
+
+    assert mock_db.get_data(group_member_table) == [
+        ("foo", "thing", False),
+        ("foo1", "thing1", False),
+    ]
+
+    assert mock_db.get_data(permission_table) == [
+        ("foo", "bar", False),
+        ("foo1", "bar", False),
+    ]
+
+    await admin_bot.remove_permission_user("thing1 a b c", event, conn)
+
+    assert event.mock_calls == [call.notice("Too many arguments")]
+
+    assert mock_db.get_data(group_table) == [("foo", False), ("foo1", False)]
+
+    assert mock_db.get_data(group_member_table) == [
+        ("foo", "thing", False),
+        ("foo1", "thing1", False),
+    ]
+
+    assert mock_db.get_data(permission_table) == [
+        ("foo", "bar", False),
+        ("foo1", "bar", False),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_remove_permission_user_too_few_args(mock_db):
+    conn = MockConn(nick="testconn")
+
+    session = mock_db.session()
+
+    group_table = Group.__table__
+    group_member_table = GroupMember.__table__
+    permission_table = GroupPermission.__table__
+
+    group_table.create(mock_db.engine)
+    group_member_table.create(mock_db.engine)
+    permission_table.create(mock_db.engine)
+
+    manager = PermissionManager(conn)
+    conn.permissions = manager
+    perm = "bar"
+    group = Group(
+        name="foo",
+        perms=[GroupPermission(name=perm)],
+        members=[GroupMember(mask="thing")],
+    )
+
+    group1 = Group(
+        name="foo1",
+        perms=[GroupPermission(name=perm)],
+        members=[GroupMember(mask="thing1")],
+    )
+
+    session.add(group)
+    session.add(group1)
+
+    session.commit()
+    event = MagicMock()
+    event.conn = conn
+    event.nick = "foo"
+
+    assert mock_db.get_data(group_table) == [("foo", False), ("foo1", False)]
+
+    assert mock_db.get_data(group_member_table) == [
+        ("foo", "thing", False),
+        ("foo1", "thing1", False),
+    ]
+
+    assert mock_db.get_data(permission_table) == [
+        ("foo", "bar", False),
+        ("foo1", "bar", False),
+    ]
+
+    await admin_bot.remove_permission_user("", event, conn)
+
+    assert event.mock_calls == [call.notice("Not enough arguments")]
+
+    assert mock_db.get_data(group_table) == [("foo", False), ("foo1", False)]
+
+    assert mock_db.get_data(group_member_table) == [
+        ("foo", "thing", False),
+        ("foo1", "thing1", False),
+    ]
+
+    assert mock_db.get_data(permission_table) == [
+        ("foo", "bar", False),
+        ("foo1", "bar", False),
+    ]
