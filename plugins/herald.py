@@ -63,7 +63,8 @@ def load_cache(db):
 @hook.command()
 def herald(text, nick, chan, db, reply):
     """{<message>|show|delete|remove} - adds a greeting for your nick that will be announced everytime you join the
-    channel. Using .herald show will show your current herald and .herald delete will remove your greeting."""
+    channel. Using .herald show will show your current herald and .herald delete will remove your greeting.
+    """
     if text.lower() == "show":
         greeting = herald_cache[chan.casefold()].get(nick.casefold())
         if greeting is None:
@@ -84,7 +85,7 @@ def herald(text, nick, chan, db, reply):
         db.execute(query)
         db.commit()
 
-        reply("greeting '{}' for {} has been removed".format(greeting, nick))
+        reply(f"greeting '{greeting}' for {nick} has been removed")
 
         load_cache(db)
         return None
@@ -127,9 +128,9 @@ def deleteherald(text, chan, db, reply):
     db.commit()
 
     if res.rowcount > 0:
-        reply("greeting for {} has been removed".format(text.lower()))
+        reply(f"greeting for {text.lower()} has been removed")
     else:
-        reply("{} does not have a herald".format(text.lower()))
+        reply(f"{text.lower()} does not have a herald")
 
     load_cache(db)
 
@@ -172,11 +173,11 @@ def welcome(nick, message, bot, chan, conn):
         if grab is not None:
             out = grab.code.grabrandom(text, chan, message)
         else:
-            out = "grab.py not loaded, original herald: {}".format(greet)
+            out = f"grab.py not loaded, original herald: {greet}"
 
         if out:
             message(out, chan)
     elif decoy.search(stripped):
-        message("DECOY DUCK --> {}".format(greet), chan)
+        message(f"DECOY DUCK --> {greet}", chan)
     else:
-        message("\u200b {}".format(greet), chan)
+        message(f"\u200b {greet}", chan)

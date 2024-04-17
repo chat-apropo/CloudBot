@@ -1,8 +1,10 @@
-from cloudbot import hook
 import unidecode
+
+from cloudbot import hook
 
 origspace = "abcdefghijklmnopqrstuvwxyz"
 keyspace = "4bcd3fg8ijk1mn0pqr57uvwxy2"
+
 
 def leetify(text):
     out = ""
@@ -13,6 +15,7 @@ def leetify(text):
         else:
             out += origc
     return out
+
 
 @hook.command("leet", "leetify", "l33t", "1337")
 def leet(text, chan, bot, conn, message):

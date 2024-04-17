@@ -95,7 +95,7 @@ def wikipop(wiki: tuple, chan, nick, user=None) -> str:
     url = page.url
 
     desc = formatting.truncate(desc, MAX_SUMMARY)
-    return "\x02{}\x02 :: {} :: {}".format(title, desc, url)
+    return f"\x02{title}\x02 :: {desc} :: {url}"
 
 
 def search(wiki: tuple, query: str, chan, nick) -> str:
@@ -123,6 +123,7 @@ def make_search_hook(commands):
 
     def wikisearch(text, bot, chan, nick):
         return process_irc_input(commands, text, chan, nick)
+
     wikisearch.__doc__ = f"<query> - Searches the {name} for <query>. If you don't pass any query, it will return a random result. Use .wikilist to know more wiki commands."
     return wikisearch
 
@@ -142,6 +143,7 @@ def make_next_hook(commands):
 
     wikinext.__doc__ = f" - Gets the next result from the last {name} search"
     return wikinext
+
 
 @hook.command("wikilist", autohelp=False)
 def wikilist(text, bot, chan, nick):

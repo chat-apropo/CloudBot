@@ -9,10 +9,12 @@ Created By:
 License:
     GPL v3
 """
+
 import inspect
 import time
+import typing
 import warnings
-from math import log, floor
+from math import floor, log
 from numbers import Real
 from operator import itemgetter
 from threading import RLock
@@ -285,7 +287,7 @@ class CryptoCurrencyMap(APIRequestResponse):
         super().__init__(status)
         self.data = data
 
-        self.names = set(currency.symbol for currency in self.data)
+        self.names = {currency.symbol for currency in self.data}
 
 
 BAD_FIELD_TYPE_MSG = (
@@ -341,12 +343,9 @@ def _hydrate_object(_value, _cls):
         _assert_type(_value, dict)
         return read_data(_value, _cls)
 
-    try:
-        typing_cls = _cls.__origin__  # type: ignore[union-attr]
-    except AttributeError:
-        pass
-    else:
-        type_args = _cls.__args__  # type: ignore[union-attr]
+    typing_cls = typing.get_origin(_cls)
+    if typing_cls is not None:
+        type_args = typing.get_args(_cls)
         if issubclass(typing_cls, list):
             _assert_type(_value, list, _cls)
 
@@ -363,7 +362,7 @@ def _hydrate_object(_value, _cls):
             }
 
         # pragma: no cover
-        raise TypeError("Can't match typing alias {!r}".format(typing_cls))
+        raise TypeError(f"Can't match typing alias {typing_cls!r}")
 
     _assert_type(_value, _cls)
 
@@ -403,7 +402,7 @@ def read_data(data: Dict, schema_cls: Type[T]) -> T:
                 ) from e
         except (MissingSchemaField, TypeAssertError, ParseError) as e:
             raise ParseError(
-                "Unable to parse schema {!r}".format(schema_cls.__name__)
+                f"Unable to parse schema {schema_cls.__name__!r}"
             ) from e
 
     obj = schema_cls(**out)
@@ -506,7 +505,7 @@ class CoinMarketCapAPI:
             raise UnknownFiatCurrencyError(currency)
 
         if self.show_btc:
-            convert = "{},BTC".format(currency)
+            convert = f"{currency},BTC"
         else:
             convert = currency
 
@@ -598,7 +597,7 @@ def alias_wrapper(alias):
         event.text = alias.name + " " + text
         return call_with_args(crypto_command, event)
 
-    func.__doc__ = """- Returns the current {} value""".format(alias.name)
+    func.__doc__ = f"""- Returns the current {alias.name} value"""
     func.__name__ = alias.name + "_alias"
 
     return func
@@ -619,9 +618,9 @@ def crypto_command(text, event):
     try:
         data = api.get_quote(ticker, currency)
     except UnknownFiatCurrencyError as e:
-        return "Unknown fiat currency {!r}".format(e.name)
+        return f"Unknown fiat currency {e.name!r}"
     except UnknownSymbolError as e:
-        return "Unknown cryptocurrency {!r}".format(e.name)
+        return f"Unknown cryptocurrency {e.name!r}"
     except APIError:
         event.reply("Unknown API error")
         raise
@@ -629,22 +628,24 @@ def crypto_command(text, event):
     quote = data.quote[currency]
     change = cast(Union[int, float], quote.percent_change_24h)
     if change > 0:
-        change_str = "$(dark_green)+{}%$(clear)".format(change)
+        change_str = f"$(dark_green)+{change}%$(clear)"
     elif change < 0:
-        change_str = "$(dark_red){}%$(clear)".format(change)
+        change_str = f"$(dark_red){change}%$(clear)"
     else:
-        change_str = "{}%".format(change)
+        change_str = f"{change}%"
 
     currency_sign = api.get_currency_sign(currency)
 
     if api.show_btc:
         btc_quote = data.quote["BTC"]
-        btc = "- {:,.7f} BTC ".format(float(btc_quote.price))
+        btc = f"- {float(btc_quote.price):,.7f} BTC "
     else:
         btc = ""
 
     price = float(quote.price)
-    precision = max(floor(log(1 / price if price != 0 else 0.01) / log(10)) + 4, 2)
+    precision = max(
+        floor(log(1 / price if price != 0 else 0.01) / log(10)) + 4, 2
+    )
     return colors.parse(
         (
             "{} ({}) // $(orange){}{:,.{}f}$(clear) {} " + btc + "// {} change"
@@ -660,15 +661,26 @@ def crypto_command(text, event):
     )
 
 
+def format_price(price: Union[int, float, Real]) -> str:
+    price = float(price)
+    if price < 1:
+        precision = max(2, min(10, len(str(Decimal(str(price)))) - 2))
+        num_format = "{:01,.{}f}".format(price, precision)
+    else:
+        num_format = f"{price:,.2f}"
+
+    return num_format
+
+
 @hook.command("currencies", "currencylist", autohelp=False)
 def currency_list():
     """- List all available currencies from the API"""
     currency_map = api.get_crypto_currency_map()
     currencies = sorted(
-        set((obj.symbol, obj.name) for obj in currency_map.data),
+        {(obj.symbol, obj.name) for obj in currency_map.data},
         key=itemgetter(0),
     )
-    lst = ["{: <10} {}".format(symbol, name) for symbol, name in currencies]
+    lst = [f"{symbol: <10} {name}" for symbol, name in currencies]
     lst.insert(0, "Symbol     Name")
 
     return "Available currencies: " + web.paste("\n".join(lst))

@@ -9,6 +9,7 @@ from sqlalchemy import (
     String,
     Table,
     func,
+    inspect,
     not_,
     select,
 )
@@ -44,8 +45,9 @@ def migrate_table(db, logger):
         Column("deleted", String(5), default=0),
         PrimaryKeyConstraint("chan", "nick", "time"),
     )
+    inspector = inspect(db.bind)
 
-    if not old_table.exists():
+    if not inspector.has_table(old_table.name):
         database.metadata.remove(old_table)
         return
 
@@ -106,25 +108,12 @@ def add_quote(db, chan, target, sender, message):
     return "Quote added."
 
 
-def del_quote(db, nick, msg):
-    """Deletes a quote from a nick"""
-    query = (
-        qtable.update()
-        .where(qtable.c.chan == 1)
-        .where(qtable.c.nick == nick.lower())
-        .where(qtable.c.msg == msg)
-        .values(deleted=True)
-    )
-    db.execute(query)
-    db.commit()
-
-
 def get_quote_num(num, count, name):
     """Returns the quote number to fetch from the DB"""
     if num:  # Make sure num is a number if it isn't false
         num = int(num)
     if count == 0:  # Error on no quotes
-        raise Exception("No quotes found for {}.".format(name))
+        raise Exception(f"No quotes found for {name}.")
     if num and num < 0:  # Count back if possible
         num = count + num + 1 if num + count > -1 else count + 1
     if num and num > count:  # If there are not enough quotes, raise an error
@@ -161,7 +150,7 @@ def get_quote_by_nick(db, nick, num=False):
         .where(qtable.c.nick == nick.lower())
         .order_by(qtable.c.time)
         .limit(1)
-        .offset((num - 1))
+        .offset(num - 1)
     )
     data = db.execute(query).fetchall()[0]
     return format_quote(data, num, count)
@@ -189,7 +178,7 @@ def get_quote_by_nick_chan(db, chan, nick, num=False):
         .where(qtable.c.nick == nick.lower())
         .order_by(qtable.c.time)
         .limit(1)
-        .offset((num - 1))
+        .offset(num - 1)
     )
     data = db.execute(query).fetchall()[0]
     return format_quote(data, num, count)
@@ -215,7 +204,7 @@ def get_quote_by_chan(db, chan, num=False):
         .where(qtable.c.chan == chan)
         .order_by(qtable.c.time)
         .limit(1)
-        .offset((num - 1))
+        .offset(num - 1)
     )
     data = db.execute(query).fetchall()[0]
     return format_quote(data, num, count)

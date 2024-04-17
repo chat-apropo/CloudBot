@@ -6,8 +6,11 @@ from plugins.core import chan_log
 def test_format_exception_chain():
     def _get_data(exc):
         yield repr(exc)
-        yield "  args = {!r}".format(exc.args)
-        yield "  with_traceback = {!r}".format(exc.with_traceback)
+        if hasattr(exc, "add_note"):
+            yield f"  add_note = {exc.add_note!r}"
+
+        yield f"  args = {exc.args!r}"
+        yield f"  with_traceback = {exc.with_traceback!r}"
         yield ""
 
     err = ValueError("Test")

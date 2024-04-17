@@ -1,5 +1,6 @@
 # Get range of pi digits
 import requests
+
 from cloudbot import hook
 
 API = "https://api.pi.delivery/v1/pi"
@@ -8,9 +9,11 @@ MAX_DIGITS = 400
 
 def pi_range(start: int, size: int) -> str:
     response = requests.get(
-        API, params={"start": start, "numberOfDigits": size, "radix": 10})
+        API, params={"start": start, "numberOfDigits": size, "radix": 10}
+    )
     if response.status_code == 200:
         yield response.json().get("content")
+
 
 @hook.command("pi", autohelp=False)
 def pi(text: str):
@@ -30,7 +33,7 @@ def pi(text: str):
         return "Usage: .pi <start> <size>"
 
     if size > MAX_DIGITS:
-        return "Size must be less than {}".format(MAX_DIGITS)
+        return f"Size must be less than {MAX_DIGITS}"
     if size < 0:
         return "Size must be greater than 0"
 

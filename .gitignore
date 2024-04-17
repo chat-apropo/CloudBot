@@ -64,3 +64,5 @@ config.json
 .python-version
 .vagrant/
 .mypy_cache/
+.DS_Store
+.venv

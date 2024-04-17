@@ -14,16 +14,17 @@ logger = logging.getLogger("cloudbot")
 last_results = {}  # per user results
 translator = Dict()
 
+
 @hook.command("t")
 def dcc(text, nick):
-    """t <in> <out> <query> - translate <query> from <in> to <out> where <in> and <out> are two-letter language codes""" 
+    """t <in> <out> <query> - translate <query> from <in> to <out> where <in> and <out> are two-letter language codes"""
     global last_results
     text = text.strip().split()
     if len(text) < 3:
         return "Usage: .t <in> <out> <query>"
     inp = text[0]
     out = text[1]
-    query = ' '.join(text[2:])
+    query = " ".join(text[2:])
 
     if inp not in AVAILABLE_LANGUAGES:
         return f"Invalid input language: {inp}"

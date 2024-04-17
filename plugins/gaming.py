@@ -9,6 +9,7 @@ Modified By:
 License:
     GPL v3
 """
+
 import random
 import re
 
@@ -50,7 +51,7 @@ def approximate(count, n):
     # Calculate a random sum approximated using a randomized normal variate with the midpoint used as the mu
     # and an approximated standard deviation based on variance as the sigma
     mid = 0.5 * (n + 1) * count
-    var = (n ** 2 - 1) / 12
+    var = (n**2 - 1) / 12
     adj_var = (var * count) ** 0.5
     normalvariate = random.normalvariate(mid, adj_var)
     return normalvariate
@@ -61,7 +62,7 @@ def dice(text, event):
     """<dice roll> - simulates dice rolls. Example: 'dice 2d20-d5+4 roll 2': D20s, subtract 1D5, add 4"""
     match = valid_diceroll.match(text)
     if not match:
-        event.notice("Invalid dice roll '{}'".format(text))
+        event.notice(f"Invalid dice roll '{text}'")
         return None
 
     text, desc = match.groups()
@@ -132,7 +133,7 @@ def coin(text, notice, action):
         try:
             amount = int(text)
         except (ValueError, TypeError):
-            notice("Invalid input '{}': not a number".format(text))
+            notice(f"Invalid input '{text}': not a number")
             return None
     else:
         amount = 1

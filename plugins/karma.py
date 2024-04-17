@@ -81,7 +81,9 @@ def re_addpt(match, nick, chan, db, notice):
     if thing:
         addpoint(thing, nick, chan, db)
     else:
-        notice(pluspts(nick, chan, db))
+        out = pluspts(nick, chan, db)
+        if out:
+            notice(out)
 
 
 @hook.command("mm", "rmpoint")
@@ -107,7 +109,7 @@ def pluspts(nick, chan, db):
     likes = db.execute(query).fetchall()
 
     for like in likes:
-        output += "{} has {} points ".format(like[0], like[1])
+        output += f"{like[0]} has {like[1]} points "
 
     return output
 
@@ -129,7 +131,7 @@ def minuspts(nick, chan, db):
     likes = db.execute(query).fetchall()
 
     for like in likes:
-        output += "{} has {} points ".format(like[0], like[1])
+        output += f"{like[0]} has {like[1]} points "
 
     return output
 
@@ -141,10 +143,12 @@ def re_rmpt(match, nick, chan, db, notice):
     if thing:
         rmpoint(thing, nick, chan, db)
     else:
-        notice(minuspts(nick, chan, db))
+        out = minuspts(nick, chan, db)
+        if out:
+            notice(out)
 
 
-@hook.command("points", autohelp=False)
+@hook.command("points")
 def points_cmd(text, chan, db):
     """<thing> - will print the total points for <thing> in the channel."""
     score = 0
@@ -180,7 +184,7 @@ def points_cmd(text, chan, db):
             text, score, pos, neg, chan
         )
 
-    return "I couldn't find {} in the database.".format(text)
+    return f"I couldn't find {text} in the database."
 
 
 def parse_lookup(text, db, chan, name):
@@ -188,14 +192,14 @@ def parse_lookup(text, db, chan, name):
         items = db.execute(
             select([karma_table.c.thing, karma_table.c.score])
         ).fetchall()
-        out = "The {{}} most {} things in all channels are: ".format(name)
+        out = f"The {{}} most {name} things in all channels are: "
     else:
         items = db.execute(
             select([karma_table.c.thing, karma_table.c.score]).where(
                 karma_table.c.chan == chan
             )
         ).fetchall()
-        out = "The {{}} most {} things in {{}} are: ".format(name)
+        out = f"The {{}} most {name} things in {{}} are: "
 
     return out, items
 
@@ -214,7 +218,7 @@ def do_list(text, db, chan, loved=True):
     scores = counts.items()
     sorts = sorted(scores, key=operator.itemgetter(1), reverse=loved)[:10]
     out = out.format(len(sorts), chan) + " \u2022 ".join(
-        "{} with {} points".format(thing[0], thing[1]) for thing in sorts
+        f"{thing[0]} with {thing[1]} points" for thing in sorts
     )
     return out
 
