@@ -4,6 +4,7 @@
 
 
 import mwparserfromhell
+import traceback
 from mediawiki import MediaWiki, exceptions
 
 from cloudbot import hook
@@ -36,6 +37,7 @@ APIS = {
     ("roblox", "froblox"): "https://roblox.fandom.com/api.php",
     ("nintendo", "fnintendo"): "https://nintendo.fandom.com/api.php",
     ("malware", "wmal"): "https://malwiki.org/api.php",
+    ("conservapedia", "wcp"): "https://www.conservapedia.com/api.php",
 }
 
 results = {}
@@ -48,12 +50,12 @@ def on_start():
     global results, API
     results = {}
     for wiki in APIS:
+        results[wiki] = Queue()
         try:
-            results[wiki] = Queue()
             results[wiki].metadata.wiki = MediaWiki(APIS[wiki])
-        except Exception:
-            print(f"Failed to connect to {APIS[wiki]}")
-            continue
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error: {e}")
 
 
 def summary_from_page(text: str) -> str:
