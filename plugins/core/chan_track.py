@@ -220,6 +220,10 @@ class User(MappingAttributeAdapter):
         )
         return memb
 
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     @property
     def account(self):
         """
