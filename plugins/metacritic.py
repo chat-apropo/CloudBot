@@ -24,6 +24,15 @@ class Result:
     platform: str
 
 
+CAT_MAP = {
+    "all": None,
+    "game": 13,
+    "movie": 2,
+    "tv": 1,
+    "people": 3,
+}
+
+
 def get_first_of_class(node, class_name):
     obj = node.find_class(class_name)
     if obj:
@@ -119,31 +128,15 @@ def metan(chan, nick):
 
 @hook.command("metacritic", "meta")
 def metacritic(text, reply, chan, nick):
-    """[list|all|movie|tv|album|x360|ps3|pc|gba|ds|3ds|wii|vita|wiiu|xone|xbsx|ps4|ps5] <title> - gets rating for <title> from
-    metacritic on the specified medium"""
+    """[list|all|games|movies|shows|people] <title> - gets rating for <title> from
+    metacritic on the specified catetory"""
     global results_queue
 
     args = text.strip()
 
-    game_platforms = (
-        "x360",
-        "ps3",
-        "pc",
-        "gba",
-        "ds",
-        "3ds",
-        "wii",
-        "vita",
-        "wiiu",
-        "xone",
-        "xbsx",
-        "ps4",
-        "ps5",
-    )
-
-    all_platforms = game_platforms + ("all", "movie", "tv", "album")
+    all_platforms = list(CAT_MAP.keys())
     if args.strip().casefold() == "list".casefold():
-        return "Platforms: {}".format(", ".join(all_platforms))
+        return "Categoties: {}".format(", ".join(all_platforms))
 
     try:
         plat, title = args.split(" ", 1)
@@ -156,14 +149,13 @@ def metacritic(text, reply, chan, nick):
         plat = "all"
         title = args
 
-    cat = "game" if plat in game_platforms else plat
-
+    cat = CAT_MAP[plat]
     title_safe = requests.utils.quote(title)
 
-    url = f"http://www.metacritic.com/search/{cat}/{title_safe}/results"
+    url = f"http://www.metacritic.com/search/{title_safe}"
 
     try:
-        request = requests.get(url, headers=headers)
+        request = requests.get(url, headers=headers, params={"category": cat, "page": 0})
         request.raise_for_status()
     except (
         requests.exceptions.HTTPError,

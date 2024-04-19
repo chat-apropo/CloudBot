@@ -23,7 +23,7 @@
                 "warn": 120,
                 "timeout": 300
             },
-            "user_agent": "CloudBot/3.0 - CloudBot Refresh <https://github.com/TotallyNotRobots/CloudBot/>",
+            "user_agent": "CloudBot/3.0 - CloudBot Refresh <https://github.com/chat-apropo/CloudBot>",
             "reply_ping": true,
             "nick": "MyCloudBot",
             "user": "cloudbot",
@@ -143,7 +143,7 @@
         "config_reloading": true,
         "plugin_reloading": false
     },
-    "repo_link": "https://github.com/TotallyNotRobots/CloudBot/",
+    "repo_link": "https://github.com/chat-apropo/CloudBot",
     "logging": {
         "console_debug": false,
         "file_debug": false,
