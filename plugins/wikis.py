@@ -3,8 +3,9 @@
 # Date: 31/07/2022
 
 
+from functools import lru_cache
+from typing import Callable
 import mwparserfromhell
-import traceback
 from mediawiki import MediaWiki, exceptions
 
 from cloudbot import hook
@@ -40,22 +41,25 @@ APIS = {
     ("conservapedia", "wcp"): "https://www.conservapedia.com/api.php",
 }
 
-results = {}
+state = {}
 
 MAX_SUMMARY = 250
 
 
+def wiki_builder(url: str) -> Callable[[], MediaWiki]:
+    @lru_cache
+    def get_wiki():
+        return MediaWiki(url)
+    return get_wiki
+
+
 @hook.on_start()
 def on_start():
-    global results, API
-    results = {}
+    global state, API
+    state = {}
     for wiki in APIS:
-        results[wiki] = Queue()
-        try:
-            results[wiki].metadata.wiki = MediaWiki(APIS[wiki])
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Error: {e}")
+        state[wiki] = Queue()
+        state[wiki].metadata.get_wiki = wiki_builder(APIS[wiki])
 
 
 def summary_from_page(text: str) -> str:
@@ -73,12 +77,12 @@ def summary_from_page(text: str) -> str:
 
 def wikipop(wiki: tuple, chan, nick, user=None) -> str:
     """Pops the first result from the list and returns the formated summary."""
-    global results
+    global state
     if user:
-        queue = results[wiki][chan][user]
+        queue = state[wiki][chan][user]
     else:
-        queue = results[wiki][chan][nick]
-    wikipedia = results[wiki].metadata.wiki
+        queue = state[wiki][chan][nick]
+    wikipedia = state[wiki].metadata.get_wiki()
     if len(queue) == 0:
         return "No [more] results found."
     i = 0
@@ -103,19 +107,25 @@ def wikipop(wiki: tuple, chan, nick, user=None) -> str:
 def search(wiki: tuple, query: str, chan, nick) -> str:
     """Searches for the query and returns the formated summary populating the
     results list."""
-    global results
-    wikipedia = results[wiki].metadata.wiki
-    results[wiki][chan][nick] = wikipedia.search(query)
+    global state
+    try:
+        wikipedia = state[wiki].metadata.get_wiki()
+        state[wiki][chan][nick] = wikipedia.search(query)
+    except Exception as e:
+        return f"Error: {e}"
     return wikipop(wiki, chan, nick)
 
 
 def process_irc_input(wiki: tuple, text: str, chan, nick) -> str:
     """Processes the input from the irc user and returns a random result from
     the wiki if no arguments is passed, otherwise performs the search."""
-    global results
+    global state
     if text.strip() == "":
-        wikipedia = results[wiki].metadata.wiki
-        results[wiki][chan][nick] = [wikipedia.random()]
+        try:
+            wikipedia = state[wiki].metadata.get_wiki()
+            state[wiki][chan][nick] = [wikipedia.random()]
+        except Exception as e:
+            return f"Error: {e}"
         return wikipop(wiki, chan, nick)
     return search(wiki, text, chan, nick)
 
@@ -134,10 +144,10 @@ def make_next_hook(commands):
     name = commands[0]
 
     def wikinext(text, bot, chan, nick):
-        global results
+        global state
         user = text.strip().split()[0] if text.strip() else None
         if user:
-            if user not in results[commands][chan]:
+            if user not in state[commands][chan]:
                 return f"Nick '{user}' has no queue."
         else:
             user = None

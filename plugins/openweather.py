@@ -14,6 +14,7 @@ except Exception as e:
 
 @hook.command("we")
 def weater(text):
+    """<city> - Get the current weather of <city>"""
     x = curweath.by_cname(text)
     if 'message' in x:
         return x['message']
