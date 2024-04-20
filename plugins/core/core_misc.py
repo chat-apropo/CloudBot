@@ -115,9 +115,16 @@ async def onjoin(conn, bot):
             log_chan, key = log_chan.split(None, 1)
         else:
             key = None
-
         conn.join(log_chan, key)
 
+    channels = conn.config.get("channels")
+    if channels:
+        for chan in channels:
+            if " " in chan:
+                chan, key = log_chan.split(None, 1)
+            else:
+                key = None
+            conn.join(chan, key)
     conn.ready = True
     logger.info(
         "[%s|misc] Bot has finished sending join commands for network.",
@@ -127,8 +134,7 @@ async def onjoin(conn, bot):
 
 @hook.irc_raw("376")
 async def do_joins(conn):
-    """
-    Join config defined channels
+    """Join config defined channels.
 
     :param cloudbot.client.Client conn: Connecting client
     """
