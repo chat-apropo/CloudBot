@@ -418,10 +418,13 @@ def attack(event, nick, chan, db, conn, attack_type, nick2=None):
 #         return attack(event, nick, chan, db, conn, "shoot")
 
 
-@hook.regex(re.compile(r"^\s*\.bang\s+(\S+)\s*$", re.I))
+@hook.regex(re.compile(r"^\s*(.+)bang\s+(\S+)\s*$", re.I))
 def bang(match, nick, chan, db, conn, event):
+    if conn.config["command_prefix"] != match[1]:
+        return
+
     with chan_locks[conn.name][chan.casefold()]:
-        return attack(event, nick, chan, db, conn, "shoot", match[1])
+        return attack(event, nick, chan, db, conn, "shoot", match[2])
 
 
 def top_list(prefix, data, join_char=" • "):

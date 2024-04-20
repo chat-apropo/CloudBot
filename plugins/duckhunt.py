@@ -75,9 +75,7 @@ status_table = Table(
 
 
 class ChannelState:
-    """
-    Represents the state of the hunt in a single channel
-    """
+    """Represents the state of the hunt in a single channel."""
 
     def __init__(self):
         self.masks = []
@@ -138,8 +136,11 @@ def get_config(conn, field, default):
 
 @hook.on_start()
 def load_optout(db):
-    """load a list of channels duckhunt should be off in. Right now I am being lazy and not
-    differentiating between networks this should be cleaned up later."""
+    """load a list of channels duckhunt should be off in.
+
+    Right now I am being lazy and not differentiating between networks
+    this should be cleaned up later.
+    """
     new_data = defaultdict(list)
     chans = db.execute(optout.select())
     for row in chans:
@@ -222,8 +223,9 @@ def set_game_state(db, conn, chan, active=None, duck_kick=None):
 
 @hook.event([EventType.message, EventType.action], singlethread=True)
 def increment_msg_counter(event, conn):
-    """Increment the number of messages said in an active game channel. Also keep track of the unique masks that are
-    speaking.
+    """Increment the number of messages said in an active game channel.
+
+    Also keep track of the unique masks that are speaking.
     """
     if is_opt_out(conn.name, event.chan):
         return
@@ -312,7 +314,8 @@ def no_duck_kick(db, text, chan, conn, notice_doc):
 
 
 def generate_duck():
-    """Try and randomize the duck message so people can't highlight on it/script against it."""
+    """Try and randomize the duck message so people can't highlight on
+    it/script against it."""
     rt = random.randint(1, len(duck_tail) - 1)
     dtail = duck_tail[:rt] + " \u200b " + duck_tail[rt:]
 
@@ -376,7 +379,7 @@ def dbadd_entry(nick, chan, db, conn, shoot, friend):
 
 
 def dbupdate(nick, chan, db, conn, shoot, friend):
-    """update a db row"""
+    """update a db row."""
     values = {}
     if shoot:
         values["shot"] = shoot
@@ -508,10 +511,14 @@ def attack(event, nick, chan, db, conn, attack_type):
     return None
 
 
+
 # @hook.command("bang", autohelp=False)
-@hook.regex(re.compile(r"^\s*\.bang\s*$", re.I))
-def bang(nick, chan, db, conn, event):
+@hook.regex(re.compile(r"^\s*(.+)bang\s*$", re.I))
+def bang(match, nick, chan, db, conn, event):
     """- when there is a duck on the loose use this command to shoot it."""
+    if conn.config["command_prefix"] != match[1]:
+        return
+
     with chan_locks[conn.name][chan.casefold()]:
         return attack(event, nick, chan, db, conn, "shoot")
 
