@@ -39,6 +39,7 @@ APIS = {
     ("nintendo", "fnintendo"): "https://nintendo.fandom.com/api.php",
     ("malware", "wmal"): "https://malwiki.org/api.php",
     ("conservapedia", "wcp"): "https://www.conservapedia.com/api.php",
+    ("zncbouncer", "znc"): "https://wiki.znc.in/api.php",
 }
 
 state = {}

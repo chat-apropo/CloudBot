@@ -1,197 +1,122 @@
-import re
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-
+from functools import lru_cache
 import requests
-from lxml import html
+from bs4 import BeautifulSoup
+from dataclasses import dataclass
+from typing import List, Optional
+from urllib.parse import quote
 
-from cloudbot import hook
 from cloudbot.util.queue import Queue
-
-results_queue = Queue()
-
-# metacritic thinks it's so damn smart blocking my scraper
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, "
-    "like Gecko) Chrome/41.0.2228.0 Safari/537.36",
-    "Referer": "http://www.metacritic.com/",
+from cloudbot import hook
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"}
+URL = "https://www.metacritic.com/search"
+CATEGORY_MAP = {
+    "all": None, "games": 13, "movies": 2, "shows": 1, "people": 3
 }
+NUMBER_OF_RESULTS = 3
 
 
 @dataclass
-class Result:
-    result: html.HtmlElement
-    platform: str
+class SearchResult:
+    url: str
+    title: str
+    platform: Optional[str]
+    release_date: str
+    meta_score: str
+    user_score: str
+
+    @classmethod
+    def from_url(cls, url: str) -> "SearchResult":
+        response = requests.get(url, headers=HEADERS)
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        def get_item(selector, body):
+            result = body.select_one(selector)
+            if result:
+                return result.text.strip()
+            return None
+
+        return SearchResult(
+            url=url,
+            title=get_item("div.c-productHero_title h1", soup),
+            platform=get_item(
+                "div.c-productHero_score-container div.c-ProductHeroGamePlatformInfo title", soup),
+            release_date=get_item(
+                "div.c-productHero_score-container div.g-text-xsmall span.u-text-uppercase", soup),
+            meta_score=get_item(
+                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-critic_medium span", soup),
+            user_score=get_item(
+                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-user span", soup)
+        )
 
 
-CAT_MAP = {
-    "all": None,
-    "game": 13,
-    "movie": 2,
-    "tv": 1,
-    "people": 3,
-}
+def search_metacritic(query, category=None) -> List[str]:
+    encoded_query = quote(query)
+    url = f"{URL}/{encoded_query}"
+    if category:
+        url += f"?category={category}"
+
+    response = requests.get(url, headers=HEADERS)
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    results = soup.select("div.c-pageSiteSearch-results a[href]")
+    result_urls = [f"https://www.metacritic.com{link['href']}" for link in results]
+
+    return result_urls
 
 
-def get_first_of_class(node, class_name):
-    obj = node.find_class(class_name)
-    if obj:
-        return obj[0].text_content().strip()
-    return ""
+@lru_cache
+def get_queue():
+    return Queue()
 
 
 @hook.command("metan", autohelp=False)
-def metan(chan, nick):
+def metan(text, chan, nick):
     """- gets the next result from the last metacritic search"""
-    global results_queue
-    results = results_queue[chan][nick]
-    if len(results) == 0:
-        return "No [more] results found."
+    args = text.strip().split()
+    if len(args) > 0:
+        nick = args[0]
 
-    result = results.pop()
-    plat = result.platform
-    result = result.result
+    results_queue = get_queue()
+    urls = results_queue[chan][nick]
+    if len(urls) == 0:
+        return "No [more] results found for " + nick
 
-    if result is None:
-        return "No results found."
+    results = [SearchResult.from_url(urls.pop()) for _ in range(NUMBER_OF_RESULTS)]
 
-    # get the name, release date, and score from the result
-    product_title = result.find_class("product_title")[0]
-    name = product_title.text_content()
-    link = "http://metacritic.com" + product_title.find("a").attrib["href"]
-
-    release = None
-    user_score = ""
-    cowntdown_date = ""
-    try:
-        request = requests.get(link, headers=headers)
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
-        pass
-    finally:
-        if request.text:
-            doc = html.fromstring(request.text)
-            try:
-                release = (
-                    doc.find_class("summary_detail release_data")[0]
-                    .find_class("data")[0]
-                    .text_content()
-                )
-            except IndexError:
-                release = None
-            else:
-                # strip extra spaces out of the release date
-                release = re.sub(r"\s{2,}", " ", release).strip()
-
-            user_score = get_first_of_class(doc, "metascore_w user")
-            countdown = doc.find_class("product_countdown")
-            if countdown:
-                try:
-                    script = (
-                        countdown[0]
-                        .find_class("countdown_holder")[0]
-                        .find("span")
-                        .find("script")
-                        .text_content()
-                    )
-                except IndexError:
-                    pass
-                else:
-                    match = re.match(
-                        r"^.+(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d).+", script
-                    )
-                    if match:
-                        cowntdown_date = match.group(1)
-                        # Get time delta
-                        cowntdown_date = datetime.strptime(
-                            cowntdown_date, "%Y-%m-%d %H:%M:%S"
-                        )
-                        cowntdown_date = cowntdown_date - datetime.now()
-                        cowntdown_date = str(cowntdown_date).split(".")[0]
-
-    score = get_first_of_class(result, "metascore_w")
-
-    return "[{}] {} - \x02{}/100\x02, {}{}{} - {}".format(
-        plat.upper().strip(),
-        name.strip(),
-        score.strip() or "no score",
-        f"user score: \x02{user_score}/10\x02, " if user_score else "",
-        (
-            f"release: \x02{release}\x02, "
-            if release and not cowntdown_date
-            else ""
-        ),
-        f"releases in: \x02{cowntdown_date}\x02" if cowntdown_date else "",
-        link,
-    )
+    return [
+            f"\x02{result.title or '?'}\x02{f' ({result.platform})' if result.platform else ''} - \x02Release\x02: {result.release_date or '?'} "
+        f"- \x02Metascore:\x02 {result.meta_score or '?'} - \x02User Score:\x02 {result.user_score or '?'} - {result.url or '?'}"
+        for result in results
+    ]
 
 
 @hook.command("metacritic", "meta")
 def metacritic(text, reply, chan, nick):
     """[list|all|games|movies|shows|people] <title> - gets rating for <title> from
     metacritic on the specified catetory"""
-    global results_queue
-
+    results_queue = get_queue()
     args = text.strip()
 
-    all_platforms = list(CAT_MAP.keys())
-    if args.strip().casefold() == "list".casefold():
+    all_platforms = list(CATEGORY_MAP.keys())
+    if args.casefold() == "list".casefold():
         return "Categoties: {}".format(", ".join(all_platforms))
 
-    try:
-        plat, title = args.split(" ", 1)
-        if plat not in all_platforms:
-            # raise the ValueError so that the except block catches it
-            # in this case, or in the case of the .split above raising the
-            # ValueError, we want the same thing to happen
-            raise ValueError
-    except ValueError:
-        plat = "all"
-        title = args
+    first = args.split()[0]
+    category = None
+    query = args
+    if first in CATEGORY_MAP:
+        category = CATEGORY_MAP[first]
+        query = " ".join(args.split()[1:])
 
-    cat = CAT_MAP[plat]
-    title_safe = requests.utils.quote(title)
+    results_queue[chan][nick] = search_metacritic(query, category)
+    return metan("", chan, nick)
 
-    url = f"http://www.metacritic.com/search/{title_safe}"
 
-    try:
-        request = requests.get(url, headers=headers, params={"category": cat, "page": 0})
-        request.raise_for_status()
-    except (
-        requests.exceptions.HTTPError,
-        requests.exceptions.ConnectionError,
-    ) as e:
-        reply(f"Could not get Metacritic info: {e}")
-        raise
-
-    doc = html.fromstring(request.text)
-
-    if not doc.find_class("search_results"):
-        return "No results found."
-
-    # if they specified an invalid search term, the input box will be empty
-    if doc.get_element_by_id("primary_search_box").value == "":
-        return "Invalid search term."
-
-    results = doc.find_class("result")
-    results_array = []
-    for res in results:
-        # if the result_type div has a platform div, get that one
-        result_plat = None
-        platform_div = res.find_class("platform")
-        if platform_div:
-            result_plat = platform_div[0].text_content().strip()
-        else:
-            result_type = res.find_class("result_type")
-            if result_type:
-                # otherwise, use the result_type text_content
-                result_plat = result_type[0].text_content().strip()
-
-        if (
-            plat not in game_platforms
-            or result_plat.casefold() == plat.casefold()
-        ):
-            results_array.append(Result(res, result_plat or plat))
-
-    results_queue[chan][nick] = results_array
-    return metan(chan, nick)
+if __name__ == "__main__":
+    query = "Final Fantasy"
+    category = CATEGORY_MAP.get("games")  # Change this to test different categories
+    urls = search_metacritic(query, category)
+    for url in urls:
+        result = SearchResult.from_url(url)
+        print(result)
