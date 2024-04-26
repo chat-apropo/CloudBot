@@ -1,43 +1,14 @@
-import json
 import re
 from time import sleep
 
-import requests
 
 from cloudbot import hook
+from plugins.huggingface import HuggingFaceClient
 
 LANG_MODEL_MAP = {
     "en": "vennify/t5-base-grammar-correction",
     "de": "MRNH/mbart-german-grammar-corrector",
 }
-API_URL = "https://api-inference.huggingface.co/models/{model}"
-
-
-class HuggingFaceClient:
-    def __init__(self, api_tokens: "list[str]"):
-        self.api_tokens = iter(api_tokens)
-        self.session = requests.Session()
-        self.refresh_headers()
-
-    def refresh_headers(self) -> None:
-        self.session.headers.update(
-            {"Authorization": f"Bearer {self.next_token()}"}
-        )
-
-    def next_token(self) -> str:
-        return next(self.api_tokens)
-
-    def _send(self, payload: dict, model: str) -> dict:
-        data = json.dumps(payload)
-        response = self.session.request(
-            "POST", API_URL.format(model=model), data=data
-        )
-        obj = json.loads(response.content.decode("utf-8"))
-        return obj
-
-    def send(self, text: str, model: str) -> dict:
-        inputs = {"inputs": text}
-        return self._send(inputs, model)
 
 
 def grammar(text, bot, reply, lang="en", retry=True):
@@ -80,7 +51,7 @@ def grammar(text, bot, reply, lang="en", retry=True):
         resp = resp.strip()
         # Replace " ." in endings with "."
         resp = re.sub(r"\s+\.$", ".", resp)
-        return resp
+        return resp.strip()
 
     generated_text = {proccess_response(r["generated_text"]) for r in response}
     if text.strip() in generated_text:

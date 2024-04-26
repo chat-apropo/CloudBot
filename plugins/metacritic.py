@@ -72,7 +72,7 @@ def get_queue():
 
 @hook.command("metan", autohelp=False)
 def metan(text, chan, nick):
-    """- gets the next result from the last metacritic search"""
+    """[nick] - gets the next result from the last metacritic search"""
     args = text.strip().split()
     if len(args) > 0:
         nick = args[0]
