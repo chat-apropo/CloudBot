@@ -7,6 +7,14 @@ import requests
 from cloudbot import hook
 from cloudbot.bot import bot
 
+def uwuify(text: str) -> str:
+    try:
+        from uwuipy import uwuipy
+        uwu = uwuipy()
+    except ImportError:
+        return "uwuipy is not installed. Please install it using `pip install uwuipy`"
+    return uwu.uwuify(text)
+
 API = "https://api.funtranslations.com/translate"
 
 LANGS = {
@@ -40,6 +48,7 @@ LANGS = {
     "piglatin": f"{API}/piglatin",
     "mandalorian": f"{API}/mandalorian",
     "huttese": f"{API}/huttese",
+    "uwu": uwuify,
 }
 
 
@@ -128,8 +137,13 @@ def funtranslate(text, reply):
             return "Available languages: " + ", ".join(LANGS.keys())
         return "Invalid language, Type '.tr list' to see available ones"
 
+
     # Get text
     text = " ".join(text.split()[1:])
+
+
+    if callable(LANGS[lang]):
+        return LANGS[lang](text)
 
     # Translate
     headers = {

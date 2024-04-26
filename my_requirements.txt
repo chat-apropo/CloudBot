@@ -55,6 +55,7 @@ treelib==1.6.1
 tweepy==3.10.0
 typing-extensions==3.7.4.3
 urllib3==1.26.7
+uwuipy==0.1.5
 validators==0.19.0
 venusian==3.0.0
 watchdog==2.1.6
