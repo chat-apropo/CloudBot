@@ -18,6 +18,15 @@ from cloudbot.util.queue import Queue
 # (commands, tuple, ...): "api_url"
 APIS = {
     ("wikipedia", "w"): "https://en.wikipedia.org/w/api.php",
+    ("wikipedia_brasil", "wbr"): "https://br.wikipedia.org/w/api.php",
+    ("wikipedia_portugal", "wpt"): "https://pt.wikipedia.org/w/api.php",
+    ("wikipedia_deutsch", "wde"): "https://de.wikipedia.org/w/api.php",
+    ("wikipedia_espanol", "wes"): "https://es.wikipedia.org/w/api.php",
+    ("wikipedia_francais", "wfr"): "https://fr.wikipedia.org/w/api.php",
+    ("wikipedia_italiano", "wit"): "https://it.wikipedia.org/w/api.php",
+    ("wikipedia_nederlands", "wnl"): "https://nl.wikipedia.org/w/api.php",
+    ("wikipedia_romana", "wro"): "https://ro.wikipedia.org/w/api.php",
+    ("wikipedia_occitan", "woc"): "https://oc.wikipedia.org/w/api.php",
     ("wikinews", "wnews"): "https://en.wikinews.org/w/api.php",
     ("uncyclopedia", "uw"): "https://uncyclopedia.com/w/api.php",
     ("desclicopedia", "desc"): "https://desciclopedia.org/api.php",
