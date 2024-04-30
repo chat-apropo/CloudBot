@@ -112,7 +112,7 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
         else:
             output = formatting.json_format(obj)
 
-        return output
+        return output# + [json.dumps(obj)]
 
 
 class FileIrcResponseWrapper(IrcResponseWrapper):
@@ -245,7 +245,10 @@ def hfn(text: str, chan: str, nick: str):
     if len(results) == 0:
         return "No [more] results found for " + nick
 
-    current_queue[chan][nick] = [results.pop() for _ in range(3)]
+    try:
+        current_queue[chan][nick] = [results.pop() for _ in range(3)]
+    except IndexError:
+        return "No results found for " + nick
     return [f"{i+1})  {str(c)}" for i, c in enumerate(current_queue[chan][nick])]
 
 
@@ -285,6 +288,7 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
 
     try:
         response = client.send(text, model)
+        response.raise_for_status()
     except requests.exceptions.HTTPError as e:
         check = None
         try:
@@ -297,7 +301,10 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
             return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
         return f"error: {e} - {e.response.text}"
 
-    output = irc_response_builder(response).as_text()
+    try:
+        output = irc_response_builder(response).as_text()
+    except requests.exceptions.HTTPError as e:
+        return f"error: {e} - {e.response.text}"
 
     return output
 

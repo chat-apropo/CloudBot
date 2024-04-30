@@ -385,7 +385,6 @@ def gen_markdown_table(headers, rows):
     ]
     return "\n".join(lines)
 
-
 def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 12) -> List[str]:
     """Generates a multi-line JSON formatted string from the data to be
     displayed in IRC showing keys and values and identing."""
@@ -406,14 +405,14 @@ def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int 
         else:
             value = str(value)
 
+        return value
+
     def get_key_value_line(key, value, identation_level) -> str:
         return f"{' ' * identation_level * indent}\x02{key}\x02 -> {value}"
 
-    def highlight_flat_obj(obj: Union[dict, list], identation_level: int = 0) -> List[str]:
-        """
-        Make keys bold, numbers italic and string values normal with green foreground
-        Null and false values are red and true values are blue
-        """
+    def highlight_flat_obj(obj: Union[Dict, List], identation_level: int = 0) -> List[str]:
+        """Make keys bold, numbers italic and string values normal with green
+        foreground Null and false values are red and true values are blue."""
         obj_lines = []
         elements = enumerate(obj) if isinstance(obj, list) else obj.items()
         for key, value in elements:
@@ -421,12 +420,15 @@ def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int 
                 value = format_base_type(value)
                 obj_lines.append(get_key_value_line(key, value, identation_level))
             elif isinstance(value, list):
-                for item in enumerate(value):
+                obj_lines.append(get_key_value_line(key, "", identation_level))
+                for i, item in enumerate(value):
                     if isinstance(item, dict):
-                        item = highlight_flat_obj(item, identation_level + 1)
+                        obj_lines.append(get_key_value_line(i, "", identation_level + 1))
+                        item = highlight_flat_obj(item, identation_level + 2)
                         obj_lines.extend(item)
                     elif isinstance(item, list):
-                        item = highlight_flat_obj(item, identation_level + 1)
+                        obj_lines.append(get_key_value_line(i, "", identation_level + 1))
+                        item = highlight_flat_obj(item, identation_level + 2)
                         obj_lines.extend(item)
                     else:
                         value = format_base_type(value)
