@@ -21,6 +21,17 @@ from cloudbot.util.queue import Queue
 INFERENCE_API = "https://api-inference.huggingface.co/models/{model}"
 BASE_API = "https://huggingface.co/api/"
 
+ALIASES = {
+    "image": "stabilityai/stable-diffusion-xl-base-1.0",
+    "anime": "cagliostrolab/animagine-xl-3.1",
+    "pixel": "nerijs/pixel-art-xl",
+    "icon": "kopyl/ui-icons-256",
+    "music": "facebook/musicgen-small",
+    "gpt": "openai-community/gpt2",
+    "sentiment": "cardiffnlp/twitter-roberta-base-sentiment-latest",
+    "speak": "facebook/mms-tts-eng",
+}
+
 
 def filter_unexpected_fields(cls):
     original_init = cls.__init__
@@ -110,7 +121,7 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
         if isinstance(obj, list) and "generated_text" in obj[0]:
             output = [" - ".join(r["generated_text"] for r in obj)]
         else:
-            output = formatting.json_format(obj)
+            output = [""] + formatting.json_format(obj)
 
         return output# + [json.dumps(obj)]
 
@@ -312,4 +323,24 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
 @hook.command("hfinference", "hfi")
 def hfi(bot, reply, text: str, chan: str, nick: str):
     """<model> <text> - sends text to the model for inference. Model can be the number of a result from the last search or actual model id"""
+    return _hfi(bot, reply, text, chan, nick)
+
+
+@hook.command("hfalias", "hfa")
+def hfa(bot, reply, text: str, chan: str, nick: str):
+    """<alias> <text> - sends text to the aliased model for inference. Similar to .hfi. Use .hfa list to see available aliases"""
+    if text.strip() == "list":
+        return ["The following aliases are available: "] + formatting.json_format(ALIASES)
+
+    if len(text.strip().split()) < 2:
+        return "Usage: .hfa <alias> <text>"
+
+    alias, query = text.strip().split(maxsplit=1)
+    if alias == "list":
+        return ["The following aliases are available: "] + formatting.json_format(ALIASES)
+
+    if alias not in ALIASES:
+        return "error: alias not found. Use .hfa list to see available aliases"
+
+    text = ALIASES[alias] + " " + query
     return _hfi(bot, reply, text, chan, nick)
