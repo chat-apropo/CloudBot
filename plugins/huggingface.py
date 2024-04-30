@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import sleep
-from typing import List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote
 
 import magic
@@ -21,16 +21,37 @@ from cloudbot.util.queue import Queue
 INFERENCE_API = "https://api-inference.huggingface.co/models/{model}"
 BASE_API = "https://huggingface.co/api/"
 
+
+@dataclass
+class ModelAliasPreset:
+    id: str
+    parameters: Optional[Dict[str, Union[Callable[[], str], str]]] = None
+
+    def with_params(self, **kwargs) -> "ModelAliasPreset":
+        if self.parameters is None:
+            self.parameters = {}
+        self.parameters.update(kwargs)
+        return self
+
+    def get_params(self):
+        return {
+            key: value() if callable(value) else value
+            for key, value in self.parameters.items()
+        } if self.parameters else {}
+
+
 ALIASES = {
-    "image": "stabilityai/stable-diffusion-xl-base-1.0",
-    "anime": "cagliostrolab/animagine-xl-3.1",
-    "pixel": "nerijs/pixel-art-xl",
-    "icon": "kopyl/ui-icons-256",
-    "music": "facebook/musicgen-small",
-    "gpt": "openai-community/gpt2",
-    "sentiment": "cardiffnlp/twitter-roberta-base-sentiment-latest",
-    "speak": "facebook/mms-tts-eng",
+    "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0").with_params(seed=lambda: random.randint(0, 1000)),
+    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(seed=lambda: random.randint(0, 1000)),
+    "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl").with_params(seed=lambda: random.randint(0, 1000)),
+    "icon": ModelAliasPreset(id="kopyl/ui-icons-256").with_params(seed=lambda: random.randint(0, 1000)),
+    "music": ModelAliasPreset(id="facebook/musicgen-small"),
+    "gpt": ModelAliasPreset(id="openai-community/gpt2"),
+    "sentiment": ModelAliasPreset(id="cardiffnlp/twitter-roberta-base-sentiment-latest"),
+    "speak": ModelAliasPreset(id="facebook/mms-tts-eng"),
 }
+
+ALIASED_MODELS_ID_MAP = {preset.id: preset for preset in ALIASES.values()}
 
 
 def filter_unexpected_fields(cls):
@@ -123,7 +144,7 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
         else:
             output = [""] + formatting.json_format(obj)
 
-        return output# + [json.dumps(obj)]
+        return output  # + [json.dumps(obj)]
 
 
 class FileIrcResponseWrapper(IrcResponseWrapper):
@@ -139,7 +160,8 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
             if not filename:
                 mime = magic.from_buffer(self.response.content, mime=True)
                 extension = mimetypes.guess_extension(mime)
-                random_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+                random_filename = ''.join(random.choice(
+                    string.ascii_uppercase + string.digits) for _ in range(8))
                 filename = f"{random_filename}{extension}"
 
             file_path = f"{temp_dir}/{filename or 'file.jpeg'}"
@@ -202,6 +224,9 @@ class HuggingFaceClient:
 
     def send(self, text: str, model: str) -> requests.Response:
         inputs = {"inputs": text}
+        preset_model = ALIASED_MODELS_ID_MAP.get(model)
+        if preset_model:
+            inputs["parameters"] = preset_model.get_params()
         return self._send(inputs, model)
 
     def search_model(self, query: str) -> List[ModelInfo]:
@@ -329,18 +354,20 @@ def hfi(bot, reply, text: str, chan: str, nick: str):
 @hook.command("hfalias", "hfa")
 def hfa(bot, reply, text: str, chan: str, nick: str):
     """<alias> <text> - sends text to the aliased model for inference. Similar to .hfi. Use .hfa list to see available aliases"""
+    fail_msg = ["The following aliases are available: "] + \
+        formatting.json_format({alias: info.id for alias, info in ALIASES.items()})
     if text.strip() == "list":
-        return ["The following aliases are available: "] + formatting.json_format(ALIASES)
+        return fail_msg
 
     if len(text.strip().split()) < 2:
         return "Usage: .hfa <alias> <text>"
 
     alias, query = text.strip().split(maxsplit=1)
     if alias == "list":
-        return ["The following aliases are available: "] + formatting.json_format(ALIASES)
+        return fail_msg
 
     if alias not in ALIASES:
         return "error: alias not found. Use .hfa list to see available aliases"
 
-    text = ALIASES[alias] + " " + query
+    text = ALIASES[alias].id + " " + query
     return _hfi(bot, reply, text, chan, nick)
