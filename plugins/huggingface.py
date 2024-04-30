@@ -1,15 +1,22 @@
-from functools import lru_cache
-from datetime import datetime
-from time import sleep
-from cloudbot import hook
-from typing import List, Optional, Tuple
+import json
+import mimetypes
+import random
+import string
 from dataclasses import dataclass, fields
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from time import sleep
+from typing import List, Optional, Tuple
 from urllib.parse import quote
 
-from cloudbot.util.queue import Queue
-from cloudbot.util import formatting
+import magic
 import requests
-import json
+
+from cloudbot import hook
+from cloudbot.util import formatting
+from cloudbot.util.queue import Queue
 
 INFERENCE_API = "https://api-inference.huggingface.co/models/{model}"
 BASE_API = "https://huggingface.co/api/"
@@ -64,6 +71,103 @@ class ModelInfo:
         )
 
 
+def upload_file(file) -> str:
+    with open(file, 'rb') as f:
+        data = f.read()
+
+    headers = {
+        "filename": Path(file).name,
+        "bin": "cloudbot".replace("#", "--"),
+    }
+    response = requests.post('https://filebin.net/', data=data, headers=headers)
+    response.raise_for_status()
+    report = response.json()
+    bin = report["bin"]["id"]
+    file = report["file"]["filename"]
+    return f"https://filebin.net/{bin}/{file}"
+
+
+class IrcResponseWrapper:
+    content_type = ["text/plain"]
+
+    def __init__(self, response: requests.Response):
+        response.raise_for_status()
+        self.response = response
+
+    def as_text(self) -> List[str]:
+        return [self.response.text]
+
+
+class JsonIrcResponseWrapper(IrcResponseWrapper):
+    content_type = ["application/json"]
+
+    def as_text(self) -> List[str]:
+        try:
+            obj = json.loads(self.response.content.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return super().as_text()
+
+        if isinstance(obj, list) and "generated_text" in obj[0]:
+            output = [" - ".join(r["generated_text"] for r in obj)]
+        else:
+            output = formatting.json_format(obj)
+
+        return output
+
+
+class FileIrcResponseWrapper(IrcResponseWrapper):
+    content_type = ["application/octet-stream"]
+
+    def as_text(self) -> List[str]:
+        with TemporaryDirectory() as temp_dir:
+            content_disposition = self.response.headers.get("Content-Disposition")
+            filename = None
+            if content_disposition:
+                filename = content_disposition.split("filename=")[1].strip('"')
+
+            if not filename:
+                mime = magic.from_buffer(self.response.content, mime=True)
+                extension = mimetypes.guess_extension(mime)
+                random_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+                filename = f"{random_filename}{extension}"
+
+            file_path = f"{temp_dir}/{filename or 'file.jpeg'}"
+            with open(file_path, "wb") as file:
+                file.write(self.response.content)
+            try:
+                url = upload_file(file_path)
+            except requests.exceptions.HTTPError as e:
+                return [f"error: {e} - {e.response.text}", file_path]
+
+        return [url]
+
+
+class ImageIrcResponseWrapper(FileIrcResponseWrapper):
+    content_type = ["image/png", "image/jpeg", "image/gif", "image/webp"]
+
+
+class AudioIrcResponseWrapper(FileIrcResponseWrapper):
+    content_type = ["audio/mpeg", "audio/ogg", "audio/wav", "audio/flac"]
+
+
+class VideoIrcResponseWrapper(FileIrcResponseWrapper):
+    content_type = ["video/mp4", "video/webm"]
+
+
+def irc_response_builder(response: requests.Response) -> IrcResponseWrapper:
+    def all_subclasses(cls):
+        return set(cls.__subclasses__()).union(
+            [s for c in cls.__subclasses__() for s in all_subclasses(c)])
+
+    content_type_list = response.headers.get("Content-Type", "").split(";")
+    reponse_wrappers_list = all_subclasses(IrcResponseWrapper)
+    for content_type in content_type_list:
+        for wrapper in reponse_wrappers_list:
+            if content_type.lower() in wrapper.content_type:
+                return wrapper(response)
+    return IrcResponseWrapper(response)
+
+
 class HuggingFaceClient:
     def __init__(self, api_tokens: "list[str]"):
         self.api_tokens = iter(api_tokens)
@@ -78,16 +182,14 @@ class HuggingFaceClient:
     def next_token(self) -> str:
         return next(self.api_tokens)
 
-    def _send(self, payload: dict, model: str) -> dict:
+    def _send(self, payload: dict, model: str) -> requests.Response:
         data = json.dumps(payload)
         response = self.session.request(
             "POST", INFERENCE_API.format(model=model), data=data
         )
-        response.raise_for_status()
-        obj = json.loads(response.content.decode("utf-8"))
-        return obj
+        return response
 
-    def send(self, text: str, model: str) -> dict:
+    def send(self, text: str, model: str) -> requests.Response:
         inputs = {"inputs": text}
         return self._send(inputs, model)
 
@@ -195,10 +297,7 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
             return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
         return f"error: {e} - {e.response.text}"
 
-    if isinstance(response, list) and "generated_text" in response[0]:
-        output = [r["generated_text"] for r in response]
-    else:
-        output = json.dumps(response, sort_keys=True)
+    output = irc_response_builder(response).as_text()
 
     return output
 

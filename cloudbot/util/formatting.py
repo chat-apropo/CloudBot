@@ -1,5 +1,4 @@
-"""
-formatting.py
+"""formatting.py.
 
 Contains functions for formatting and working with strings.
 
@@ -49,9 +48,9 @@ import copy
 import re
 import warnings
 from html.parser import HTMLParser
-from typing import Dict
+from typing import Dict, List, Union
 
-from cloudbot.util.colors import strip_irc
+from cloudbot.util.colors import get_color, strip_irc
 
 # Constants
 
@@ -117,9 +116,7 @@ REPLACEMENTS = {
 
 
 class HTMLTextExtractor(HTMLParser):
-    """
-    Takes HTML and provides cleaned and stripped text.
-    """
+    """Takes HTML and provides cleaned and stripped text."""
 
     def __init__(self):
         HTMLParser.__init__(self)
@@ -136,24 +133,24 @@ class HTMLTextExtractor(HTMLParser):
 
 
 def strip_html(to_strip):
-    """
-    Takes HTML and returns cleaned and stripped text.
-    """
+    """Takes HTML and returns cleaned and stripped text."""
     s = HTMLTextExtractor()
     s.feed(to_strip)
     return s.get_text()
 
 
 def munge(text, count=0):
-    """
-    Replaces characters in a string with visually similar characters to avoid pinging users in IRC.
-    Count sets how many characters are replaced, defaulting to all characters.
+    """Replaces characters in a string with visually similar characters to
+    avoid pinging users in IRC.
+
+    Count sets how many characters are replaced, defaulting to all
+    characters.
     """
     reps = 0
     for n, c in enumerate(text):
         rep = REPLACEMENTS.get(c)
         if rep:
-            text = text[:n] + rep + text[n + 1 :]
+            text = text[:n] + rep + text[n + 1:]
             reps += 1
             if reps == count:
                 break
@@ -161,10 +158,11 @@ def munge(text, count=0):
 
 
 def ireplace(text, old, new, count=None):
-    """
-    A case-insensitive replace() clone. Return a copy of text with all occurrences of substring
-    old replaced by new. If the optional argument count is given, only the first count
-    occurrences are replaced.
+    """A case-insensitive replace() clone.
+
+    Return a copy of text with all occurrences of substring old replaced
+    by new. If the optional argument count is given, only the first
+    count occurrences are replaced.
     """
     pattern = re.compile(re.escape(old), re.IGNORECASE)
 
@@ -175,10 +173,8 @@ def ireplace(text, old, new, count=None):
 
 
 def multi_replace(text, word_dic):
-    """
-    Takes a string and replace words that match a key in a dictionary with the associated value,
-    then returns the changed text
-    """
+    """Takes a string and replace words that match a key in a dictionary with
+    the associated value, then returns the changed text."""
     rc = re.compile("|".join(map(re.escape, word_dic)))
 
     def translate(match):
@@ -192,9 +188,7 @@ multiword_replace = multi_replace
 
 
 def truncate_words(content, length=10, suffix="..."):
-    """
-    Truncates a string after a certain number of words.
-    """
+    """Truncates a string after a certain number of words."""
     split = content.split()
     if len(split) <= length:
         return " ".join(split[:length])
@@ -203,8 +197,8 @@ def truncate_words(content, length=10, suffix="..."):
 
 
 def truncate(content, length=100, suffix="...", sep=" "):
-    """
-    Truncates a string after a certain number of characters.
+    """Truncates a string after a certain number of characters.
+
     Function always tries to truncate on a word boundary.
     """
     if len(content) <= length:
@@ -219,23 +213,23 @@ strip_colors = strip_irc
 
 
 def chunk_str(content, length=420):
-    """
-    Chunks a string into smaller strings of given length. Returns chunks.
+    """Chunks a string into smaller strings of given length.
+
+    Returns chunks.
     """
 
     def chunk(c, l):
         while c:
             out = (c + " ")[:l].rsplit(" ", 1)[0]
-            c = c[len(out) :].strip()
+            c = c[len(out):].strip()
             yield out
 
     return list(chunk(content, length))
 
 
 def pluralize(num=0, text=""):  # pragma: no cover
-    """
-    Takes a number and a string, and pluralizes that string using the number and combines the results.
-    """
+    """Takes a number and a string, and pluralizes that string using the number
+    and combines the results."""
     warnings.warn(
         "formatting.pluralize() is deprecated, please use one of the other formatting.pluralize_*() functions",
         DeprecationWarning,
@@ -244,9 +238,8 @@ def pluralize(num=0, text=""):  # pragma: no cover
 
 
 def pluralise(num=0, text=""):  # pragma: no cover
-    """
-    Takes a number and a string, and pluralizes that string using the number and combines the results.
-    """
+    """Takes a number and a string, and pluralizes that string using the number
+    and combines the results."""
     warnings.warn(
         "formatting.pluralise() is deprecated, please use one of the other formatting.pluralise_*() functions",
         DeprecationWarning,
@@ -255,9 +248,8 @@ def pluralise(num=0, text=""):  # pragma: no cover
 
 
 def pluralize_suffix(num=0, text="", suffix="s"):
-    """
-    Takes a number and a string, and pluralizes that string using the number and combines the results.
-    """
+    """Takes a number and a string, and pluralizes that string using the number
+    and combines the results."""
     return pluralize_select(num, text, text + suffix)
 
 
@@ -378,9 +370,7 @@ def get_text_list(list_, last_word="or"):
 
 
 def gen_markdown_table(headers, rows):
-    """
-    Generates a Markdown formatted table from the data
-    """
+    """Generates a Markdown formatted table from the data."""
     rows = copy.copy(rows)
     rows.insert(0, headers)
     rotated = zip(*reversed(rows))
@@ -394,3 +384,60 @@ def gen_markdown_table(headers, rows):
         for row in rows
     ]
     return "\n".join(lines)
+
+
+def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 12) -> List[str]:
+    """Generates a multi-line JSON formatted string from the data to be
+    displayed in IRC showing keys and values and identing."""
+    base_types = (int, float, str, bool, type(None))
+
+    def format_base_type(value):
+        if value is None:
+            color = get_color("red")
+            value = f"{color}null{color}"
+        elif isinstance(value, bool):
+            color = get_color("blue" if value else "red")
+            value = f"{color}{str(value).lower()}{color}"
+        elif isinstance(value, (int, float)):
+            value = f"\x1d{value}\x1d"
+        elif isinstance(value, str):
+            color = get_color("green")
+            value = f"{color}{value}{color}"
+        else:
+            value = str(value)
+
+    def get_key_value_line(key, value, identation_level) -> str:
+        return f"{' ' * identation_level * indent}\x02{key}\x02 -> {value}"
+
+    def highlight_flat_obj(obj: Union[dict, list], identation_level: int = 0) -> List[str]:
+        """
+        Make keys bold, numbers italic and string values normal with green foreground
+        Null and false values are red and true values are blue
+        """
+        obj_lines = []
+        elements = enumerate(obj) if isinstance(obj, list) else obj.items()
+        for key, value in elements:
+            if isinstance(value, base_types):
+                value = format_base_type(value)
+                obj_lines.append(get_key_value_line(key, value, identation_level))
+            elif isinstance(value, list):
+                for item in enumerate(value):
+                    if isinstance(item, dict):
+                        item = highlight_flat_obj(item, identation_level + 1)
+                        obj_lines.extend(item)
+                    elif isinstance(item, list):
+                        item = highlight_flat_obj(item, identation_level + 1)
+                        obj_lines.extend(item)
+                    else:
+                        value = format_base_type(value)
+                        obj_lines.append(get_key_value_line(key, value, identation_level))
+            elif isinstance(value, dict):
+                obj_lines.extend(highlight_flat_obj(value, identation_level + 1))
+            else:
+                value = str(value)
+                obj_lines.append(get_key_value_line(key, value, identation_level))
+
+        return obj_lines
+
+
+    return [truncate(c, 420) for c in highlight_flat_obj(dict_obj)][0:max_elements]
