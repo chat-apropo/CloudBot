@@ -43,7 +43,7 @@ def waifu(text):
     if response.status_code == 200:
         data = response.json()
         image = data["images"][0]
-        disclaimer = "\x02NSWF!\x02 - " if image["is_nsfw"] else ""
+        disclaimer = "\x02NSFW!\x02 - " if image["is_nsfw"] else ""
         dimensions = f"{image['width']}x{image['height']}"
         return f"{disclaimer}{dimensions} - \x02tags\x02: {', '.join([t['name'] for t in image['tags']])} - {image['url']}"
     else:

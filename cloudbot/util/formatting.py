@@ -385,7 +385,7 @@ def gen_markdown_table(headers, rows):
     ]
     return "\n".join(lines)
 
-def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 12) -> List[str]:
+def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 20) -> List[str]:
     """Generates a multi-line JSON formatted string from the data to be
     displayed in IRC showing keys and values and identing."""
     base_types = (int, float, str, bool, type(None))
@@ -395,12 +395,13 @@ def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int 
             color = get_color("red")
             value = f"{color}null{color}"
         elif isinstance(value, bool):
-            color = get_color("blue" if value else "red")
+            color = get_color("true" if value else "red")
             value = f"{color}{str(value).lower()}{color}"
         elif isinstance(value, (int, float)):
-            value = f"\x1d{value}\x1d"
+            color = get_color("lime" if isinstance(value, int) else "cyan")
+            value = f"{color}\x1d{value}\x1d{color}"
         elif isinstance(value, str):
-            color = get_color("green")
+            color = get_color("dark_green")
             value = f"{color}{value}{color}"
         else:
             value = str(value)

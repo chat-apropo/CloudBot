@@ -27,6 +27,9 @@ class ModelAliasPreset:
     id: str
     parameters: Optional[Dict[str, Union[Callable[[], str], str]]] = None
 
+    def __post_init__(self):
+        self.modify_prompt = lambda x: x
+
     def with_params(self, **kwargs) -> "ModelAliasPreset":
         if self.parameters is None:
             self.parameters = {}
@@ -40,15 +43,27 @@ class ModelAliasPreset:
         } if self.parameters else {}
 
 
+    def modify(self, callback: Callable[[str], str]) -> "ModelAliasPreset":
+        self.modify_prompt = callback
+        return self
+
+    def get_request(self, text: str) -> Dict[str, Union[str, Dict[str, str]]]:
+        return {
+            "inputs": self.modify_prompt(text),
+            "parameters": self.get_params()
+        }
+
+
 ALIASES = {
     "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0").with_params(seed=lambda: random.randint(0, 1000)),
-    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(seed=lambda: random.randint(0, 1000)),
+    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(seed=lambda: random.randint(0, 1000)).modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
     "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl").with_params(seed=lambda: random.randint(0, 1000)),
     "icon": ModelAliasPreset(id="kopyl/ui-icons-256").with_params(seed=lambda: random.randint(0, 1000)),
     "music": ModelAliasPreset(id="facebook/musicgen-small"),
     "gpt": ModelAliasPreset(id="openai-community/gpt2"),
-    "sentiment": ModelAliasPreset(id="cardiffnlp/twitter-roberta-base-sentiment-latest"),
+    "sentiment": ModelAliasPreset(id="SamLowe/roberta-base-go_emotions"),
     "speak": ModelAliasPreset(id="facebook/mms-tts-eng"),
+    "bert": ModelAliasPreset(id="google-bert/bert-base-uncased"),
 }
 
 ALIASED_MODELS_ID_MAP = {preset.id: preset for preset in ALIASES.values()}
@@ -109,7 +124,7 @@ def upload_file(file) -> str:
 
     headers = {
         "filename": Path(file).name,
-        "bin": "cloudbot".replace("#", "--"),
+        "bin": "c3bt6cvad".replace("#", "--"),
     }
     response = requests.post('https://filebin.net/', data=data, headers=headers)
     response.raise_for_status()
@@ -142,7 +157,7 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
         if isinstance(obj, list) and "generated_text" in obj[0]:
             output = [" - ".join(r["generated_text"] for r in obj)]
         else:
-            output = [""] + formatting.json_format(obj)
+            output = [""] + formatting.json_format(obj, max_elements=25)
 
         return output  # + [json.dumps(obj)]
 
@@ -226,7 +241,7 @@ class HuggingFaceClient:
         inputs = {"inputs": text}
         preset_model = ALIASED_MODELS_ID_MAP.get(model)
         if preset_model:
-            inputs["parameters"] = preset_model.get_params()
+            inputs = preset_model.get_request(text)
         return self._send(inputs, model)
 
     def search_model(self, query: str) -> List[ModelInfo]:
