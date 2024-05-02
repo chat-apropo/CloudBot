@@ -1,3 +1,4 @@
+import hashlib
 import json
 import mimetypes
 import random
@@ -7,7 +8,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from time import sleep
+from time import sleep, time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote
 
@@ -42,7 +43,6 @@ class ModelAliasPreset:
             for key, value in self.parameters.items()
         } if self.parameters else {}
 
-
     def modify(self, callback: Callable[[str], str]) -> "ModelAliasPreset":
         self.modify_prompt = callback
         return self
@@ -53,17 +53,29 @@ class ModelAliasPreset:
             "parameters": self.get_params()
         }
 
+    @property
+    def model(self):
+        return self.id.split("+")[0]
+
 
 ALIASES = {
-    "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0").with_params(seed=lambda: random.randint(0, 1000)),
-    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(seed=lambda: random.randint(0, 1000)).modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
-    "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl").with_params(seed=lambda: random.randint(0, 1000)),
-    "icon": ModelAliasPreset(id="kopyl/ui-icons-256").with_params(seed=lambda: random.randint(0, 1000)),
+    "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0")
+    .with_params(seed=lambda: random.randint(0, 1000)),
+    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1")
+    .with_params(seed=lambda: random.randint(0, 1000)),
+    "animeheavy": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
+    .with_params(seed=lambda: random.randint(0, 1000))
+    .modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
+    "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl")
+    .with_params(seed=lambda: random.randint(0, 1000)),
+    "icon": ModelAliasPreset(id="kopyl/ui-icons-256")
+    .with_params(seed=lambda: random.randint(0, 1000)),
     "music": ModelAliasPreset(id="facebook/musicgen-small"),
     "gpt": ModelAliasPreset(id="openai-community/gpt2"),
     "sentiment": ModelAliasPreset(id="SamLowe/roberta-base-go_emotions"),
     "speak": ModelAliasPreset(id="facebook/mms-tts-eng"),
-    "bert": ModelAliasPreset(id="google-bert/bert-base-uncased"),
+    "bert": ModelAliasPreset(id="google-bert/bert-base-uncased")
+    .modify(lambda x: x.replace("_", "[MASK]")),
 }
 
 ALIASED_MODELS_ID_MAP = {preset.id: preset for preset in ALIASES.values()}
@@ -118,22 +130,6 @@ class ModelInfo:
         )
 
 
-def upload_file(file) -> str:
-    with open(file, 'rb') as f:
-        data = f.read()
-
-    headers = {
-        "filename": Path(file).name,
-        "bin": "c3bt6cvad".replace("#", "--"),
-    }
-    response = requests.post('https://filebin.net/', data=data, headers=headers)
-    response.raise_for_status()
-    report = response.json()
-    bin = report["bin"]["id"]
-    file = report["file"]["filename"]
-    return f"https://filebin.net/{bin}/{file}"
-
-
 class IrcResponseWrapper:
     content_type = ["text/plain"]
 
@@ -165,7 +161,27 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
 class FileIrcResponseWrapper(IrcResponseWrapper):
     content_type = ["application/octet-stream"]
 
-    def as_text(self) -> List[str]:
+    BIN = ''.join(random.choice(string.ascii_lowercase) for _ in range(8))
+
+    @staticmethod
+    def upload_file(file, bin) -> str:
+        with open(file, 'rb') as f:
+            data = f.read()
+
+        headers = {
+            "filename": Path(file).name,
+            "bin": bin.lower().strip().replace(" ", "_").replace("-", "_").replace("#", ""),
+        }
+        response = requests.post('https://filebin.net/', data=data, headers=headers)
+        response.raise_for_status()
+        report = response.json()
+        bin = report["bin"]["id"]
+        file = report["file"]["filename"]
+        return f"https://filebin.net/{bin}/{file}"
+
+
+
+    def as_text(self, bin: str) -> List[str]:
         with TemporaryDirectory() as temp_dir:
             content_disposition = self.response.headers.get("Content-Disposition")
             filename = None
@@ -183,9 +199,9 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
             with open(file_path, "wb") as file:
                 file.write(self.response.content)
             try:
-                url = upload_file(file_path)
+                url = self.upload_file(file_path, bin)
             except requests.exceptions.HTTPError as e:
-                return [f"error: {e} - {e.response.text}", file_path]
+                return [f"error: {e} - {e.response.text}"]
 
         return [url]
 
@@ -242,7 +258,7 @@ class HuggingFaceClient:
         preset_model = ALIASED_MODELS_ID_MAP.get(model)
         if preset_model:
             inputs = preset_model.get_request(text)
-        return self._send(inputs, model)
+        return self._send(inputs, preset_model.model if preset_model else model)
 
     def search_model(self, query: str) -> List[ModelInfo]:
         query = quote(query)
@@ -353,11 +369,16 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
         return f"error: {e} - {e.response.text}"
 
     try:
-        output = irc_response_builder(response).as_text()
+        irc_reponse = irc_response_builder(response)
+        if isinstance(irc_reponse, FileIrcResponseWrapper):
+            daycount = int(time()) // 86400
+            hashed_string = hashlib.sha256(((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()).hexdigest()[:12]
+            return irc_reponse.as_text(hashed_string)
+
+        return irc_reponse.as_text()
+
     except requests.exceptions.HTTPError as e:
         return f"error: {e} - {e.response.text}"
-
-    return output
 
 
 @hook.command("hfinference", "hfi")
