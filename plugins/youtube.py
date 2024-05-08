@@ -8,7 +8,7 @@ import yt_dlp
 from cloudbot import hook
 from cloudbot.bot import bot
 from cloudbot.util import colors, timeformat
-from cloudbot.util.formatting import pluralize_suffix
+from cloudbot.util.formatting import pluralize_suffix, truncate
 
 youtube_re = re.compile(
     r"(?:youtube.*?(?:v=|/v/)|youtu\.be/|yooouuutuuube.*?id=)([-_a-zA-Z0-9]+)",
@@ -56,7 +56,7 @@ def remove_header(lines):
     ):
         if mark in lines:
             pos = lines.index(mark)
-    lines = lines[pos + 1 :]
+    lines = lines[pos + 1:]
     return lines
 
 
@@ -287,7 +287,7 @@ def get_video_description(video_id: str) -> str:
 
     if "viewCount" in statistics:
         views = int(statistics["viewCount"])
-        out += " - \x02{:,}\x02 view{}".format(views, "s"[views == 1 :])
+        out += " - \x02{:,}\x02 view{}".format(views, "s"[views == 1:])
 
     uploader = snippet["channelTitle"]
 
@@ -327,7 +327,7 @@ def get_video_id(text: str) -> str:
 def youtube_url(match: Match[str]) -> str:
     result = get_video_info(match.group(1))
     time = timeformat.format_time(int(result["duration"]), simple=True)
-    return f"\x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}"
+    return truncate(f"\x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}", 420)
 
 
 user_results = {}
@@ -339,7 +339,7 @@ def youtube_next(text: str, nick: str, reply) -> str:
     url = user_results[nick].pop(0)
     result = get_video_info(url)
     time = timeformat.format_time(int(result["duration"]), simple=True)
-    return f"{url}  -  \x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}"
+    return truncate(f"{url}  -  \x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}", 420)
 
 
 @hook.command("youtube", "you", "yt", "y")
@@ -416,6 +416,6 @@ def ytplaylist_url(match: Match[str]) -> str:
     author = snippet["channelTitle"]
     num_videos = int(content_details["itemCount"])
     count_videos = " - \x02{:,}\x02 video{}".format(
-        num_videos, "s"[num_videos == 1 :]
+        num_videos, "s"[num_videos == 1:]
     )
     return f"\x02{title}\x02 {count_videos} - \x02{author}\x02"

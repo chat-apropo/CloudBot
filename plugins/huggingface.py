@@ -60,22 +60,22 @@ class ModelAliasPreset:
 
 ALIASES = {
     "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0")
-    .with_params(seed=lambda: random.randint(0, 1000)),
+    .with_params(seed=lambda: random.randint(0, 10000)),
     "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1")
-    .with_params(seed=lambda: random.randint(0, 1000)),
+    .with_params(seed=lambda: random.randint(0, 10000)),
     "animeheavy": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
-    .with_params(seed=lambda: random.randint(0, 1000))
+    .with_params(seed=lambda: random.randint(0, 10000))
     .modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
     "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl")
-    .with_params(seed=lambda: random.randint(0, 1000)),
+    .with_params(seed=lambda: random.randint(0, 10000)),
     "icon": ModelAliasPreset(id="kopyl/ui-icons-256")
-    .with_params(seed=lambda: random.randint(0, 1000)),
+    .with_params(seed=lambda: random.randint(0, 10000)),
     "music": ModelAliasPreset(id="facebook/musicgen-small"),
     "gpt": ModelAliasPreset(id="openai-community/gpt2"),
     "sentiment": ModelAliasPreset(id="SamLowe/roberta-base-go_emotions"),
     "speak": ModelAliasPreset(id="facebook/mms-tts-eng"),
-    "bert": ModelAliasPreset(id="google-bert/bert-base-uncased")
-    .modify(lambda x: x.replace("_", "[MASK]")),
+    "bert": ModelAliasPreset(id="google-bert/bert-base-uncased"),
+    "porn": ModelAliasPreset(id="huggingtweets/porns_xx"),
 }
 
 ALIASED_MODELS_ID_MAP = {preset.id: preset for preset in ALIASES.values()}
@@ -125,7 +125,7 @@ class ModelInfo:
         bold = "\x02"
         italic = "\x1d"
         return (
-            f"{bold}{self.modelId}{bold} - ⬇️ {self.downloads} -👍 {self.likes} - 🏷️ "
+            f"{bold}{self.modelId}{bold} - \x1f{self.pipeline_tag or ''}\x1f ⬇️{self.downloads} -👍 {self.likes} - 🏷️ "
             f"{formatting.truncate(', '.join([italic + t + italic for t in self.tags]), 200)} - 🕒 {self.created_at} - {self.app_url}"
         )
 
@@ -271,7 +271,7 @@ class HuggingFaceClient:
         ) for model in response.json()]
 
     @staticmethod
-    def check_loading_model(response: dict) -> Optional[Tuple[str, int]]:
+    def check_loading_model(response: dict) -> Optional[Tuple[str, Optional[int]]]:
         if (
             "estimated_time" in response
             and "error" in response
@@ -286,7 +286,7 @@ class HuggingFaceClient:
             else:
                 return(
                     f"⏳ Model is currently loading and will take some minutes. Try again later. Estimated time: {estimated_time // 60} minutes.",
-                    estimated_time
+                    None
                 )
         return None
 
@@ -363,9 +363,11 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
         except json.JSONDecodeError:
             pass
         if check is not None and not is_retry:
-            reply(check[0])
-            sleep(check[1])
-            return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
+            if check[1] is not None:
+                reply(check[0])
+                sleep(check[1])
+                return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
+            return
         return f"error: {e} - {e.response.text}"
 
     try:
