@@ -1,7 +1,6 @@
 import re
 from time import sleep
 
-
 from cloudbot import hook
 from plugins.huggingface import HuggingFaceClient
 
@@ -25,6 +24,9 @@ def grammar(text, bot, reply, lang="en", retry=True):
 
     client = HuggingFaceClient([api_key])
     response = client.send(text, model)
+    if response.status_code != 200:
+        return f"error: {response.text}"
+    response = response.json()
     if (
         "estimated_time" in response
         and "error" in response

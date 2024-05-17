@@ -95,6 +95,8 @@ def godocs(text, reply):
 
 
 def capitalize(word: str) -> str:
+    if len(word) <= 1:
+        return word
     return word[0].upper() + word[1:]
 
 
@@ -126,7 +128,10 @@ class WildJamCardPaser:
 
     def get_theme(self):
         img = Image.open(requests.get(self.theme_url, stream=True).raw)
-        return capitalize(self.orc_image(img).split()[-1])
+        text = self.orc_image(img).split()
+        if text:
+            return capitalize(text[-1])
+        return "???????????????????"
 
 
 @hook.command("theme", autohelp=False)
