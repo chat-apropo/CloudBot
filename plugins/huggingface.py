@@ -165,21 +165,19 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
 
     @staticmethod
     def upload_file(file, bin) -> str:
-        with open(file, 'rb') as f:
-            data = f.read()
+        response = requests.post(
+            'https://filebin.cloud.mattf.one/api/files/', files={'file': open(file, 'rb')})
+        try:
+            obj = response.json()
+        except json.JSONDecodeError:
+            response.raise_for_status()
+            return response.text
 
-        headers = {
-            "filename": Path(file).name,
-            "bin": bin.lower().strip().replace(" ", "_").replace("-", "_").replace("#", ""),
-        }
-        response = requests.post('https://filebin.net/', data=data, headers=headers)
-        response.raise_for_status()
-        report = response.json()
-        bin = report["bin"]["id"]
-        file = report["file"]["filename"]
-        return f"https://filebin.net/{bin}/{file}"
-
-
+        if "url" in obj:
+            return obj["url"]
+        if "error" in obj:
+            return f"error: {obj['error']}"
+        return f"error: {obj}"
 
     def as_text(self, bin: str) -> List[str]:
         with TemporaryDirectory() as temp_dir:
@@ -374,7 +372,8 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
         irc_reponse = irc_response_builder(response)
         if isinstance(irc_reponse, FileIrcResponseWrapper):
             daycount = int(time()) // 86400
-            hashed_string = hashlib.sha256(((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()).hexdigest()[:12]
+            hashed_string = hashlib.sha256(
+                ((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()).hexdigest()[:12]
             return irc_reponse.as_text(hashed_string)
 
         return irc_reponse.as_text()
