@@ -97,6 +97,7 @@ class CloudBot(AbstractBot):
         *,
         loop: asyncio.AbstractEventLoop = None,
         base_dir: Optional[Path] = None,
+        config_dir: Optional[Path] = None,
     ) -> None:
         loop = loop or asyncio.get_event_loop()
         if bot.get():
@@ -123,14 +124,24 @@ class CloudBot(AbstractBot):
         self.memory: Dict[str, Any] = collections.defaultdict()
 
         # declare and create data folder
-        self.data_path = self.base_dir / "data"
+        if config_dir:
+            self.data_path = config_dir / "data"
+        else:
+            self.data_path = self.base_dir / "data"
 
         if not self.data_path.exists():
             logger.debug("Data folder not found, creating.")
             self.data_path.mkdir(parents=True)
 
         # set up config
-        super().__init__(config=Config(self))
+        if config_dir:
+            super().__init__(
+                config=Config(
+                    self, filename=str((config_dir / "config.json").absolute())
+                )
+            )
+        else:
+            super().__init__(config=Config(self))
         logger.debug("Config system initialised.")
 
         self.executor = ThreadPoolExecutor(

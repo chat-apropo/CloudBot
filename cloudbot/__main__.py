@@ -23,7 +23,11 @@ async def async_main():
     logger.info("Starting CloudBot.")
 
     # create the bot
-    _bot = CloudBot()
+    run_path = os.environ.get("CLOUDBOT_RUN_PATH")
+    if run_path:
+        _bot = CloudBot(base_dir=Path(run_path))
+    else:
+        _bot = CloudBot()
 
     # whether we are killed while restarting
     stopped_while_restarting = False

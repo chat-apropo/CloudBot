@@ -53,7 +53,9 @@ def _setup(base_path: Optional[Path] = None) -> None:
         logging_config = {}
 
     file_log = logging_config.get("file_log", False)
-    console_level = "INFO" if logging_config.get("console_log_info", True) else "WARNING"
+    console_level = (
+        "INFO" if logging_config.get("console_log_info", True) else "WARNING"
+    )
 
     logging_info.dir = base_path / "logs"
 
@@ -83,7 +85,10 @@ def _setup(base_path: Optional[Path] = None) -> None:
                 "stream": "ext://sys.stdout",
             }
         },
-        "loggers": {name: {"level": "DEBUG", "handlers": ["console"]} for name in logger_names},
+        "loggers": {
+            name: {"level": "DEBUG", "handlers": ["console"]}
+            for name in logger_names
+        },
     }
 
     if file_log:

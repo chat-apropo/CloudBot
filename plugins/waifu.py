@@ -4,7 +4,7 @@ import requests
 
 from cloudbot import hook
 
-API_URL = 'https://api.waifu.im/'
+API_URL = "https://api.waifu.im/"
 tags = []
 
 
@@ -35,7 +35,7 @@ def waifu(text):
 
     request_tags = list(text.split())
     params = {
-        'included_tags': request_tags,
+        "included_tags": request_tags,
     }
 
     response = requests.get(API_URL + "search", params=params)

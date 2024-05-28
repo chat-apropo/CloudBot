@@ -1,12 +1,13 @@
-import feedparser
 from dataclasses import dataclass
-from cloudbot.util import formatting
 from typing import Dict, List, Optional
+
+import feedparser
 import requests
 
 from cloudbot import hook
+from cloudbot.util import formatting
 
-API_URL = 'https://export.arxiv.org/api/query'
+API_URL = "https://export.arxiv.org/api/query"
 MAX_RESULTS = 3
 
 
@@ -39,20 +40,27 @@ def parse_arxiv_xml(xml_text: str) -> List[SearchResult]:
         summary = entry.summary
         link = entry.link
         published = entry.published
-        result = SearchResult(title=title, authors=authors,
-                              summary=summary, link=link, published=published)
+        result = SearchResult(
+            title=title,
+            authors=authors,
+            summary=summary,
+            link=link,
+            published=published,
+        )
         results.append(result)
     return results
 
 
-def search_arxiv(page: UserPage, max_results=10, sort_by_date: bool = False) -> List[SearchResult]:
+def search_arxiv(
+    page: UserPage, max_results=10, sort_by_date: bool = False
+) -> List[SearchResult]:
     query = page.query
     start = page.start
     params = {
-        'search_query': f'all:{query.casefold()}',
-        'sortBy': 'relevance' if not sort_by_date else 'submittedDate',
-        'start': start,
-        'max_results': max_results,
+        "search_query": f"all:{query.casefold()}",
+        "sortBy": "relevance" if not sort_by_date else "submittedDate",
+        "start": start,
+        "max_results": max_results,
         "SortOrder": "descending",
     }
     response = requests.get(API_URL, params=params)
@@ -66,11 +74,14 @@ def format_response(start: int, results: List[SearchResult]) -> List[str]:
     response = []
     for i, result in enumerate(results):
         parts = ""
-        parts += formatting.truncate(f"\x02{start + i + 1})\x02 {result.title}", 120)
+        parts += formatting.truncate(
+            f"\x02{start + i + 1})\x02 {result.title}", 120
+        )
         if result.published:
             parts += f" {result.published}"
         parts += formatting.truncate(
-            f" \x02Authors:\x02 {', '.join(result.authors)}.", 80)
+            f" \x02Authors:\x02 {', '.join(result.authors)}.", 80
+        )
         parts += formatting.truncate(f" {result.summary}", 240)
         parts = formatting.truncate(parts, 400)
         parts += f" :: {result.link}"
@@ -91,13 +102,14 @@ def arxiv(text: str, nick: str):
         return "Please provide a query"
 
     sort_by_date = False
-    if query.startswith('-t'):
+    if query.startswith("-t"):
         sort_by_date = True
         query = query[2:].strip()
 
     user_pages[nick] = UserPage(query=query, start=0)
     results = search_arxiv(
-        user_pages[nick], max_results=MAX_RESULTS, sort_by_date=sort_by_date)
+        user_pages[nick], max_results=MAX_RESULTS, sort_by_date=sort_by_date
+    )
     return format_response(0, results)
 
 
@@ -113,6 +125,7 @@ def arxiv_next(text: str, nick: str):
         return f"No active search for {nick}"
 
     page.start += MAX_RESULTS
-    results = search_arxiv(page, max_results=MAX_RESULTS,
-                           sort_by_date=page.sort_by_date)
+    results = search_arxiv(
+        page, max_results=MAX_RESULTS, sort_by_date=page.sort_by_date
+    )
     return format_response(page.start, results)
