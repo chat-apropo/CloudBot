@@ -25,7 +25,7 @@ async def async_main():
     # create the bot
     run_path = os.environ.get("CLOUDBOT_RUN_PATH")
     if run_path:
-        _bot = CloudBot(base_dir=Path(run_path))
+        _bot = CloudBot(config_dir=Path(run_path))
     else:
         _bot = CloudBot()
 

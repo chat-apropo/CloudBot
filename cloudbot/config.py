@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sys
 import time
 from collections import OrderedDict
@@ -9,8 +10,13 @@ logger = logging.getLogger("cloudbot")
 
 
 class Config(OrderedDict):
-    def __init__(self, bot, *, filename="config.json"):
+    def __init__(self, bot, *, filename=None):
         super().__init__()
+        logger.info(
+            f"Initializing config with filename={filename}"
+        )
+        if filename is None:
+            filename = "config.json"
         self.filename = filename
         self.path = Path(self.filename).resolve()
         self.bot = bot
@@ -34,7 +40,9 @@ class Config(OrderedDict):
         self._api_keys.clear()
         if not self.path.exists():
             # if there is no config, show an error and die
-            logger.critical(f"No config file found, bot shutting down! Looked for '{self.path}'")
+            logger.critical(
+                f"No config file found, bot shutting down! Looked for '{self.path}', {os.environ['CLOUDBOT_RUN_PATH']=}"
+            )
             print("No config file found! Bot shutting down in five seconds.")
             print("Copy 'config.default.json' to 'config.json' for defaults.")
             print(
