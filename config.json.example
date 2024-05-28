@@ -1,0 +1,157 @@
+{
+    "connections": [
+        {
+            "name": "esper",
+            "type": "irc",
+            "auto_rejoin": false,
+            "invite_join": true,
+            "join_throttle": 0.4,
+            "require_registered_channels": false,
+            "connection": {
+                "server": "irc.esper.net",
+                "port": 6667,
+                "ssl": false,
+                "ignore_cert": true,
+                "password": "",
+                "timeout": 300,
+                "client_cert": "cloudbot.pem",
+                "bind_addr": "",
+                "bind_port": 0
+            },
+            "ping_settings": {
+                "interval": 60,
+                "warn": 120,
+                "timeout": 300
+            },
+            "user_agent": "CloudBot/3.0 - CloudBot Refresh <https://github.com/TotallyNotRobots/CloudBot/>",
+            "reply_ping": true,
+            "nick": "MyCloudBot",
+            "user": "cloudbot",
+            "realname": "CloudBot - https://git.io/CloudBot",
+            "avoid_notices": false,
+            "channels": [
+                "#cloudbot",
+                "#cloudbot2"
+            ],
+            "mode": null,
+            "oper_user": null,
+            "oper_pw": null,
+            "log_channel": "#MyAdminChannel",
+            "disabled_commands": [],
+            "acls": {},
+            "sasl": {
+                "enabled": false,
+                "mechanism": "PLAIN",
+                "user": "",
+                "pass": ""
+            },
+            "nickserv": {
+                "enabled": false,
+                "nickserv_password": "",
+                "nickserv_user": "",
+                "nickserv_name": "nickserv",
+                "nickserv_command": "IDENTIFY"
+            },
+            "strip_newlines": true,
+            "max_line_length": 510,
+            "encoding": "utf-8",
+            "encoding_errors": "replace",
+            "strip_cmd_chars": "!.@;$",
+            "ratelimit": {
+                "max_tokens": 17.5,
+                "restore_rate": 2.5,
+                "message_cost": 5,
+                "strict": true
+            },
+            "permissions": {
+                "admins": {
+                    "perms": [
+                        "addfactoid",
+                        "delfactoid",
+                        "ignore",
+                        "botcontrol",
+                        "plpaste",
+                        "permissions_users",
+                        "op"
+                    ],
+                    "users": [
+                        "examplea!user@example.com",
+                        "exampleb!user@example.com"
+                    ]
+                },
+                "moderators": {
+                    "perms": [
+                        "addfactoid",
+                        "delfactoid",
+                        "ignore"
+                    ],
+                    "users": [
+                        "examplec!user@example.com"
+                    ]
+                }
+            },
+            "plugins": {},
+            "command_prefix": "."
+        }
+    ],
+    "plugins": {
+        "duckhunt": {
+            "minimum_messages": 10,
+            "minimum_users": 5
+        },
+        "speech": {
+            "api": "http://localhost:5000"
+        }
+    },
+    "api_keys": {
+        "openweathermap": "",
+        "tvdb": "",
+        "bing_azure": "",
+        "wolframalpha": "",
+        "lastfm": "",
+        "rottentomatoes": "",
+        "imgur_client_id": "",
+        "imgur_client_secret": "",
+        "spotify_client_id": "",
+        "spotify_client_secret": "",
+        "rdio_key": "",
+        "rdio_secret": "",
+        "google_dev_key": "",
+        "google_cse_id": "",
+        "octopart": "",
+        "wordnik": "",
+        "lyricsnmusic": "",
+        "cleverbot": "",
+        "brewerydb": "",
+        "alphavantage": "",
+        "coinmarketcap": "",
+        "giphy": "",
+        "speech": "",
+        "newsapi": "",
+        "webshare": ""
+    },
+    "database": "sqlite:///cloudbot.db",
+    "location_bias_cc": null,
+    "plugin_loading": {
+        "use_whitelist": false,
+        "blacklist": [
+            "update"
+        ],
+        "whitelist": []
+    },
+    "reloading": {
+        "config_reloading": true,
+        "plugin_reloading": false
+    },
+    "repo_link": "https://github.com/TotallyNotRobots/CloudBot/",
+    "logging": {
+        "console_debug": false,
+        "file_debug": false,
+        "show_plugin_loading": true,
+        "show_motd": true,
+        "show_server_info": true,
+        "raw_file_log": false,
+        "file_log": true,
+        "console_log_info": true
+    }
+}

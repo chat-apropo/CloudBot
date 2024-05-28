@@ -1,6 +1,7 @@
 import json
 import logging
 import logging.config
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -52,9 +53,7 @@ def _setup(base_path: Optional[Path] = None) -> None:
         logging_config = {}
 
     file_log = logging_config.get("file_log", False)
-    console_level = (
-        "INFO" if logging_config.get("console_log_info", True) else "WARNING"
-    )
+    console_level = "INFO" if logging_config.get("console_log_info", True) else "WARNING"
 
     logging_info.dir = base_path / "logs"
 
@@ -84,10 +83,7 @@ def _setup(base_path: Optional[Path] = None) -> None:
                 "stream": "ext://sys.stdout",
             }
         },
-        "loggers": {
-            name: {"level": "DEBUG", "handlers": ["console"]}
-            for name in logger_names
-        },
+        "loggers": {name: {"level": "DEBUG", "handlers": ["console"]} for name in logger_names},
     }
 
     if file_log:
@@ -129,4 +125,7 @@ def _setup(base_path: Optional[Path] = None) -> None:
     logging.config.dictConfig(dict_config)
 
 
+run_path = os.environ.get("CLOUDBOT_RUN_PATH")
+if run_path:
+    _setup(Path(run_path))
 _setup()
