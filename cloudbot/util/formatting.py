@@ -150,7 +150,7 @@ def munge(text, count=0):
     for n, c in enumerate(text):
         rep = REPLACEMENTS.get(c)
         if rep:
-            text = text[:n] + rep + text[n + 1:]
+            text = text[:n] + rep + text[n + 1 :]
             reps += 1
             if reps == count:
                 break
@@ -221,7 +221,7 @@ def chunk_str(content, length=420):
     def chunk(c, l):
         while c:
             out = (c + " ")[:l].rsplit(" ", 1)[0]
-            c = c[len(out):].strip()
+            c = c[len(out) :].strip()
             yield out
 
     return list(chunk(content, length))
@@ -385,7 +385,10 @@ def gen_markdown_table(headers, rows):
     ]
     return "\n".join(lines)
 
-def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 20) -> List[str]:
+
+def json_format(
+    dict_obj: Union[Dict, List], indent: int = 2, max_elements: int = 20
+) -> List[str]:
     """Generates a multi-line JSON formatted string from the data to be
     displayed in IRC showing keys and values and identing."""
     base_types = (int, float, str, bool, type(None))
@@ -411,7 +414,9 @@ def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int 
     def get_key_value_line(key, value, identation_level) -> str:
         return f"{' ' * identation_level * indent}\x02{key}\x02 -> {value}"
 
-    def highlight_flat_obj(obj: Union[Dict, List], identation_level: int = 0) -> List[str]:
+    def highlight_flat_obj(
+        obj: Union[Dict, List], identation_level: int = 0
+    ) -> List[str]:
         """Make keys bold, numbers italic and string values normal with green
         foreground Null and false values are red and true values are blue."""
         obj_lines = []
@@ -419,28 +424,41 @@ def json_format(dict_obj: Union[Dict, List], indent: int = 2, max_elements: int 
         for key, value in elements:
             if isinstance(value, base_types):
                 value = format_base_type(value)
-                obj_lines.append(get_key_value_line(key, value, identation_level))
+                obj_lines.append(
+                    get_key_value_line(key, value, identation_level)
+                )
             elif isinstance(value, list):
                 obj_lines.append(get_key_value_line(key, "", identation_level))
                 for i, item in enumerate(value):
                     if isinstance(item, dict):
-                        obj_lines.append(get_key_value_line(i, "", identation_level + 1))
+                        obj_lines.append(
+                            get_key_value_line(i, "", identation_level + 1)
+                        )
                         item = highlight_flat_obj(item, identation_level + 2)
                         obj_lines.extend(item)
                     elif isinstance(item, list):
-                        obj_lines.append(get_key_value_line(i, "", identation_level + 1))
+                        obj_lines.append(
+                            get_key_value_line(i, "", identation_level + 1)
+                        )
                         item = highlight_flat_obj(item, identation_level + 2)
                         obj_lines.extend(item)
                     else:
                         value = format_base_type(value)
-                        obj_lines.append(get_key_value_line(key, value, identation_level))
+                        obj_lines.append(
+                            get_key_value_line(key, value, identation_level)
+                        )
             elif isinstance(value, dict):
-                obj_lines.extend(highlight_flat_obj(value, identation_level + 1))
+                obj_lines.extend(
+                    highlight_flat_obj(value, identation_level + 1)
+                )
             else:
                 value = str(value)
-                obj_lines.append(get_key_value_line(key, value, identation_level))
+                obj_lines.append(
+                    get_key_value_line(key, value, identation_level)
+                )
 
         return obj_lines
 
-
-    return [truncate(c, 420) for c in highlight_flat_obj(dict_obj)][0:max_elements]
+    return [truncate(c, 420) for c in highlight_flat_obj(dict_obj)][
+        0:max_elements
+    ]

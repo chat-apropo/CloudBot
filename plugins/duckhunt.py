@@ -511,7 +511,6 @@ def attack(event, nick, chan, db, conn, attack_type):
     return None
 
 
-
 # @hook.command("bang", autohelp=False)
 @hook.regex(re.compile(r"^\s*(.+)bang\s*$", re.I))
 def bang(match, nick, chan, db, conn, event):

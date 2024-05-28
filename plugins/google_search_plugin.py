@@ -58,7 +58,6 @@ def google(text):
     )
 
 
-
 last_results = []
 
 

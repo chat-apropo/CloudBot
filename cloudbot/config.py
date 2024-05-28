@@ -34,7 +34,7 @@ class Config(OrderedDict):
         self._api_keys.clear()
         if not self.path.exists():
             # if there is no config, show an error and die
-            logger.critical("No config file found, bot shutting down!")
+            logger.critical(f"No config file found, bot shutting down! Looked for '{self.path}'")
             print("No config file found! Bot shutting down in five seconds.")
             print("Copy 'config.default.json' to 'config.json' for defaults.")
             print(

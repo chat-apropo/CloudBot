@@ -38,10 +38,14 @@ class ModelAliasPreset:
         return self
 
     def get_params(self):
-        return {
-            key: value() if callable(value) else value
-            for key, value in self.parameters.items()
-        } if self.parameters else {}
+        return (
+            {
+                key: value() if callable(value) else value
+                for key, value in self.parameters.items()
+            }
+            if self.parameters
+            else {}
+        )
 
     def modify(self, callback: Callable[[str], str]) -> "ModelAliasPreset":
         self.modify_prompt = callback
@@ -50,7 +54,7 @@ class ModelAliasPreset:
     def get_request(self, text: str) -> Dict[str, Union[str, Dict[str, str]]]:
         return {
             "inputs": self.modify_prompt(text),
-            "parameters": self.get_params()
+            "parameters": self.get_params(),
         }
 
     @property
@@ -59,17 +63,23 @@ class ModelAliasPreset:
 
 
 ALIASES = {
-    "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0")
-    .with_params(seed=lambda: random.randint(0, 10000)),
-    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1")
-    .with_params(seed=lambda: random.randint(0, 10000)),
+    "image": ModelAliasPreset(
+        id="stabilityai/stable-diffusion-xl-base-1.0"
+    ).with_params(seed=lambda: random.randint(0, 10000)),
+    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(
+        seed=lambda: random.randint(0, 10000)
+    ),
     "waifu": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
     .with_params(seed=lambda: random.randint(0, 10000))
-    .modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
-    "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl")
-    .with_params(seed=lambda: random.randint(0, 10000)),
-    "icon": ModelAliasPreset(id="kopyl/ui-icons-256")
-    .with_params(seed=lambda: random.randint(0, 10000)),
+    .modify(
+        lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"
+    ),
+    "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl").with_params(
+        seed=lambda: random.randint(0, 10000)
+    ),
+    "icon": ModelAliasPreset(id="kopyl/ui-icons-256").with_params(
+        seed=lambda: random.randint(0, 10000)
+    ),
     "music": ModelAliasPreset(id="facebook/musicgen-small"),
     "gpt": ModelAliasPreset(id="openai-community/gpt2"),
     "sentiment": ModelAliasPreset(id="SamLowe/roberta-base-go_emotions"),
@@ -86,8 +96,11 @@ def filter_unexpected_fields(cls):
 
     def new_init(self, *args, **kwargs):
         expected_fields = {field.name for field in fields(cls)}
-        cleaned_kwargs = {key: value for key,
-                          value in kwargs.items() if key in expected_fields}
+        cleaned_kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key in expected_fields
+        }
         original_init(self, *args, **cleaned_kwargs)
 
     cls.__init__ = new_init
@@ -118,7 +131,7 @@ class ModelInfo:
 
     @property
     def created_at(self):
-        return datetime.strptime(self.createdAt, '%Y-%m-%dT%H:%M:%S.%fZ')
+        return datetime.strptime(self.createdAt, "%Y-%m-%dT%H:%M:%S.%fZ")
 
     def __str__(self):
         """IRC friendly string representation of the model info."""
@@ -161,12 +174,14 @@ class JsonIrcResponseWrapper(IrcResponseWrapper):
 class FileIrcResponseWrapper(IrcResponseWrapper):
     content_type = ["application/octet-stream"]
 
-    BIN = ''.join(random.choice(string.ascii_lowercase) for _ in range(8))
+    BIN = "".join(random.choice(string.ascii_lowercase) for _ in range(8))
 
     @staticmethod
     def upload_file(file, bin) -> str:
         response = requests.post(
-            'https://filebin.cloud.mattf.one/api/files/', files={'file': open(file, 'rb')})
+            "https://filebin.cloud.mattf.one/api/files/",
+            files={"file": open(file, "rb")},
+        )
         try:
             obj = response.json()
         except json.JSONDecodeError:
@@ -181,7 +196,9 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
 
     def as_text(self, bin: str) -> List[str]:
         with TemporaryDirectory() as temp_dir:
-            content_disposition = self.response.headers.get("Content-Disposition")
+            content_disposition = self.response.headers.get(
+                "Content-Disposition"
+            )
             filename = None
             if content_disposition:
                 filename = content_disposition.split("filename=")[1].strip('"')
@@ -189,8 +206,10 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
             if not filename:
                 mime = magic.from_buffer(self.response.content, mime=True)
                 extension = mimetypes.guess_extension(mime)
-                random_filename = ''.join(random.choice(
-                    string.ascii_uppercase + string.digits) for _ in range(8))
+                random_filename = "".join(
+                    random.choice(string.ascii_uppercase + string.digits)
+                    for _ in range(8)
+                )
                 filename = f"{random_filename}{extension}"
 
             file_path = f"{temp_dir}/{filename or 'file.jpeg'}"
@@ -219,7 +238,8 @@ class VideoIrcResponseWrapper(FileIrcResponseWrapper):
 def irc_response_builder(response: requests.Response) -> IrcResponseWrapper:
     def all_subclasses(cls):
         return set(cls.__subclasses__()).union(
-            [s for c in cls.__subclasses__() for s in all_subclasses(c)])
+            [s for c in cls.__subclasses__() for s in all_subclasses(c)]
+        )
 
     content_type_list = response.headers.get("Content-Type", "").split(";")
     reponse_wrappers_list = all_subclasses(IrcResponseWrapper)
@@ -260,16 +280,14 @@ class HuggingFaceClient:
 
     def search_model(self, query: str) -> List[ModelInfo]:
         query = quote(query)
-        response = self.session.get(
-            BASE_API + f"models?search={query}"
-        )
+        response = self.session.get(BASE_API + f"models?search={query}")
         response.raise_for_status()
-        return [ModelInfo(
-            **model
-        ) for model in response.json()]
+        return [ModelInfo(**model) for model in response.json()]
 
     @staticmethod
-    def check_loading_model(response: dict) -> Optional[Tuple[str, Optional[int]]]:
+    def check_loading_model(
+        response: dict,
+    ) -> Optional[Tuple[str, Optional[int]]]:
         if (
             "estimated_time" in response
             and "error" in response
@@ -277,14 +295,14 @@ class HuggingFaceClient:
         ):
             estimated_time = int(response["estimated_time"])
             if estimated_time < 120 and estimated_time > 0:
-                return(
+                return (
                     f"⏳ Model is currently loading. I will retry in a few minutes and give your response. Please don't spam. Estimated time: {estimated_time} seconds.",
-                    estimated_time
+                    estimated_time,
                 )
             else:
-                return(
+                return (
                     f"⏳ Model is currently loading and will take some minutes. Try again later. Estimated time: {estimated_time // 60} minutes.",
-                    None
+                    None,
                 )
         return None
 
@@ -314,7 +332,9 @@ def hfn(text: str, chan: str, nick: str):
         current_queue[chan][nick] = [results.pop() for _ in range(3)]
     except IndexError:
         return "No results found for " + nick
-    return [f"{i+1})  {str(c)}" for i, c in enumerate(current_queue[chan][nick])]
+    return [
+        f"{i+1})  {str(c)}" for i, c in enumerate(current_queue[chan][nick])
+    ]
 
 
 @hook.command("huggingface", "hf")
@@ -364,7 +384,9 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
             if check[1] is not None:
                 reply(check[0])
                 sleep(check[1])
-                return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
+                return _hfi(
+                    bot, reply, model + " " + text, chan, nick, is_retry=True
+                )
             return
         return f"error: {e} - {e.response.text}"
 
@@ -373,7 +395,10 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
         if isinstance(irc_reponse, FileIrcResponseWrapper):
             daycount = int(time()) // 86400
             hashed_string = hashlib.sha256(
-                ((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()).hexdigest()[:12]
+                (
+                    (chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)
+                ).encode()
+            ).hexdigest()[:12]
             return irc_reponse.as_text(hashed_string)
 
         return irc_reponse.as_text()
@@ -391,8 +416,11 @@ def hfi(bot, reply, text: str, chan: str, nick: str):
 @hook.command("hfalias", "hfa")
 def hfa(bot, reply, text: str, chan: str, nick: str):
     """<alias> <text> - sends text to the aliased model for inference. Similar to .hfi. Use .hfa list to see available aliases"""
-    fail_msg = ["The following aliases are available: "] + \
-        formatting.json_format({alias: info.id for alias, info in ALIASES.items()})
+    fail_msg = [
+        "The following aliases are available: "
+    ] + formatting.json_format(
+        {alias: info.id for alias, info in ALIASES.items()}
+    )
     if text.strip() == "list":
         return fail_msg
 

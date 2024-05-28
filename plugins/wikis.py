@@ -5,6 +5,7 @@
 
 from functools import lru_cache
 from typing import Callable
+
 import mwparserfromhell
 from mediawiki import MediaWiki, exceptions
 
@@ -60,6 +61,7 @@ def wiki_builder(url: str) -> Callable[[], MediaWiki]:
     @lru_cache
     def get_wiki():
         return MediaWiki(url)
+
     return get_wiki
 
 

@@ -1,18 +1,19 @@
-from functools import lru_cache
-import requests
-from bs4 import BeautifulSoup
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Optional
 from urllib.parse import quote
 
-from cloudbot.util.queue import Queue
+import requests
+from bs4 import BeautifulSoup
+
 from cloudbot import hook
+from cloudbot.util.queue import Queue
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"}
-URL = "https://www.metacritic.com/search"
-CATEGORY_MAP = {
-    "all": None, "games": 13, "movies": 2, "shows": 1, "people": 3
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 }
+URL = "https://www.metacritic.com/search"
+CATEGORY_MAP = {"all": None, "games": 13, "movies": 2, "shows": 1, "people": 3}
 NUMBER_OF_RESULTS = 3
 
 
@@ -40,13 +41,21 @@ class SearchResult:
             url=url,
             title=get_item("div.c-productHero_title h1", soup),
             platform=get_item(
-                "div.c-productHero_score-container div.c-ProductHeroGamePlatformInfo title", soup),
+                "div.c-productHero_score-container div.c-ProductHeroGamePlatformInfo title",
+                soup,
+            ),
             release_date=get_item(
-                "div.c-productHero_score-container div.g-text-xsmall span.u-text-uppercase", soup),
+                "div.c-productHero_score-container div.g-text-xsmall span.u-text-uppercase",
+                soup,
+            ),
             meta_score=get_item(
-                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-critic_medium span", soup),
+                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-critic_medium span",
+                soup,
+            ),
             user_score=get_item(
-                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-user span", soup)
+                "div.c-productScoreInfo_scoreNumber div.c-siteReviewScore_background-user span",
+                soup,
+            ),
         )
 
 
@@ -60,7 +69,9 @@ def search_metacritic(query, category=None) -> List[str]:
     soup = BeautifulSoup(response.content, "html.parser")
 
     results = soup.select("div.c-pageSiteSearch-results a[href]")
-    result_urls = [f"https://www.metacritic.com{link['href']}" for link in results]
+    result_urls = [
+        f"https://www.metacritic.com{link['href']}" for link in results
+    ]
 
     return result_urls
 
@@ -82,10 +93,12 @@ def metan(text, chan, nick):
     if len(urls) == 0:
         return "No [more] results found for " + nick
 
-    results = [SearchResult.from_url(urls.pop()) for _ in range(NUMBER_OF_RESULTS)]
+    results = [
+        SearchResult.from_url(urls.pop()) for _ in range(NUMBER_OF_RESULTS)
+    ]
 
     return [
-            f"\x02{result.title or '?'}\x02{f' ({result.platform})' if result.platform else ''} - \x02Release\x02: {result.release_date or '?'} "
+        f"\x02{result.title or '?'}\x02{f' ({result.platform})' if result.platform else ''} - \x02Release\x02: {result.release_date or '?'} "
         f"- \x02Metascore:\x02 {result.meta_score or '?'} - \x02User Score:\x02 {result.user_score or '?'} - {result.url or '?'}"
         for result in results
     ]
@@ -115,7 +128,9 @@ def metacritic(text, reply, chan, nick):
 
 if __name__ == "__main__":
     query = "Final Fantasy"
-    category = CATEGORY_MAP.get("games")  # Change this to test different categories
+    category = CATEGORY_MAP.get(
+        "games"
+    )  # Change this to test different categories
     urls = search_metacritic(query, category)
     for url in urls:
         result = SearchResult.from_url(url)
