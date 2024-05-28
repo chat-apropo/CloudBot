@@ -133,11 +133,18 @@ class CloudBot(AbstractBot):
             logger.debug("Data folder not found, creating.")
             self.data_path.mkdir(parents=True)
 
+        logger.info(f"Data path: {self.data_path}")
+        logger.info(f"Config path: {config_dir}")
         # set up config
         if config_dir:
             super().__init__(
                 config=Config(
+<<<<<<< HEAD
                     self, filename=str((config_dir / "config.json").absolute())
+=======
+                    self,
+                    filename=(config_dir / "config.json").resolve(),
+>>>>>>> e6696cfb85783ea898c0cdd486f4c53b56e7e708
                 )
             )
         else:
