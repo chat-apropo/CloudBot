@@ -139,12 +139,8 @@ class CloudBot(AbstractBot):
         if config_dir:
             super().__init__(
                 config=Config(
-<<<<<<< HEAD
-                    self, filename=str((config_dir / "config.json").absolute())
-=======
                     self,
                     filename=(config_dir / "config.json").resolve(),
->>>>>>> e6696cfb85783ea898c0cdd486f4c53b56e7e708
                 )
             )
         else:
