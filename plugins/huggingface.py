@@ -63,7 +63,7 @@ ALIASES = {
     .with_params(seed=lambda: random.randint(0, 10000)),
     "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1")
     .with_params(seed=lambda: random.randint(0, 10000)),
-    "animeheavy": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
+    "waifu": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
     .with_params(seed=lambda: random.randint(0, 10000))
     .modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
     "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl")
