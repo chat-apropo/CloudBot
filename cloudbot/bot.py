@@ -124,10 +124,7 @@ class CloudBot(AbstractBot):
         self.memory: Dict[str, Any] = collections.defaultdict()
 
         # declare and create data folder
-        if config_dir:
-            self.data_path = config_dir / "data"
-        else:
-            self.data_path = self.base_dir / "data"
+        self.data_path = self.base_dir / "data"
 
         if not self.data_path.exists():
             logger.debug("Data folder not found, creating.")
@@ -173,6 +170,7 @@ class CloudBot(AbstractBot):
 
         # setup db
         db_path = self.config.get("database", "sqlite:///cloudbot.db")
+
         self.db_engine = create_engine(db_path)
         database.configure(self.db_engine)
 
