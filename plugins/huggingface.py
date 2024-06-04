@@ -166,7 +166,7 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
         default_filebin = "https://filebin.cloud.mattf.one"
         filebin = os.environ.get("FILEBIN_URL", default_filebin)
         response = requests.post(
-            f"{filebin}/api/files/",
+            f"{filebin}/api/",
             files={"file": open(file, "rb")},
         )
         try:
