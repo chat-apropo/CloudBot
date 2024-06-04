@@ -22,7 +22,7 @@ feedparser==6.0.8
 forecastiopy==0.22
 future==0.18.2
 googlemaps==4.5.3
-greenlet==1.0.0
+#greenlet==1.0.0
 idna==2.10
 imgurpython==1.1.7
 isodate==0.6.0
@@ -35,7 +35,7 @@ mcstatus==6.5.0
 multidict==5.2.0
 nltk==3.6.6
 oauthlib==3.1.0
-orjson==3.5.1
+#orjson==2.5.1
 psutil==5.8.0
 py-irclib==0.3.0
 py-open-weather==0.1.3

@@ -1,12 +1,12 @@
 import hashlib
 import json
 import mimetypes
+import os
 import random
 import string
 from dataclasses import dataclass, fields
 from datetime import datetime
 from functools import lru_cache
-from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import sleep, time
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -163,8 +163,10 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
 
     @staticmethod
     def upload_file(file, bin) -> str:
+        default_filebin = "https://filebin.cloud.mattf.one"
+        filebin = os.environ.get("FILEBIN_URL", default_filebin)
         response = requests.post(
-            "https://filebin.cloud.mattf.one/api/files/",
+            f"{filebin}/api/",
             files={"file": open(file, "rb")},
         )
         try:
