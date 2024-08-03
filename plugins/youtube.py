@@ -1,5 +1,6 @@
 import re
 from typing import Iterable, Mapping, Match, Optional, Union
+from urllib.parse import quote
 
 import isodate
 import requests
@@ -150,10 +151,7 @@ def search_youtube_videos(query, max_results=10) -> "list[str]":
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        search_results = (
-            ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
-            or {}
-        )
+        search_results = ydl.extract_info(f"ytsearch{max_results}:{quote(query)}", download=False) or {}
         video_urls = []
         for result in search_results.get("entries", []):
             if result:
@@ -232,9 +230,7 @@ def get_video(video_id: str, parts: Parts) -> requests.Response:
 
 
 def get_playlist(playlist_id: str, parts: Parts) -> requests.Response:
-    return do_request(
-        "playlists", parts, params={"maxResults": 1, "id": playlist_id}
-    )
+    return do_request("playlists", parts, params={"maxResults": 1, "id": playlist_id})
 
 
 def do_search(term: str, result_type: str = "video") -> requests.Response:
@@ -267,13 +263,9 @@ def get_video_description(video_id: str) -> str:
         return out
 
     length = isodate.parse_duration(content_details["duration"])
-    out += " - length \x02{}\x02".format(
-        timeformat.format_time(int(length.total_seconds()), simple=True)
-    )
+    out += " - length \x02{}\x02".format(timeformat.format_time(int(length.total_seconds()), simple=True))
     try:
-        total_votes = float(statistics["likeCount"]) + float(
-            statistics["dislikeCount"]
-        )
+        total_votes = float(statistics["likeCount"]) + float(statistics["dislikeCount"])
     except (LookupError, ValueError):
         total_votes = 0
 
@@ -292,9 +284,7 @@ def get_video_description(video_id: str) -> str:
     uploader = snippet["channelTitle"]
 
     upload_time = isodate.parse_datetime(snippet["publishedAt"])
-    out += " - \x02{}\x02 on \x02{}\x02".format(
-        uploader, upload_time.strftime("%Y.%m.%d")
-    )
+    out += " - \x02{}\x02 on \x02{}\x02".format(uploader, upload_time.strftime("%Y.%m.%d"))
 
     try:
         yt_rating = content_details["contentRating"]["ytRating"]
@@ -396,9 +386,7 @@ def youtime(text: str, reply) -> str:
 
     return (
         "The video \x02{}\x02 has a length of {} and has been viewed {:,} times for "
-        "a total run time of {}!".format(
-            snippet["title"], length_text, views, total_text
-        )
+        "a total run time of {}!".format(snippet["title"], length_text, views, total_text)
     )
 
 
@@ -421,7 +409,5 @@ def ytplaylist_url(match: Match[str]) -> str:
     title = snippet["title"]
     author = snippet["channelTitle"]
     num_videos = int(content_details["itemCount"])
-    count_videos = " - \x02{:,}\x02 video{}".format(
-        num_videos, "s"[num_videos == 1 :]
-    )
+    count_videos = " - \x02{:,}\x02 video{}".format(num_videos, "s"[num_videos == 1 :])
     return f"\x02{title}\x02 {count_videos} - \x02{author}\x02"
