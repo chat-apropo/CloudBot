@@ -94,6 +94,14 @@
             "command_prefix": "."
         }
     ],
+    "http_proxies": {
+        "default": {
+            "host": "someproxy.com",
+            "port": 8080,
+            "username": "user",
+            "password": "password"
+        }
+    },
     "plugins": {
         "duckhunt": {
             "minimum_messages": 10,
@@ -101,6 +109,9 @@
         },
         "speech": {
             "api": "http://localhost:5000"
+        },
+        "youtube": {
+            "http_proxy": "default"
         }
     },
     "api_keys": {

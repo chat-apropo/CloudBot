@@ -4,17 +4,31 @@ import os
 import sys
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger("cloudbot")
+
+
+@dataclass
+class ProxyOptions:
+    host: str
+    port: int
+    username: Optional[str]
+    password: Optional[str]
+
+    def __str__(self):
+        if self.username is not None and self.password is not None:
+            return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
+        else:
+            return f"http://{self.host}:{self.port}"
 
 
 class Config(OrderedDict):
     def __init__(self, bot, *, filename=None):
         super().__init__()
-        logger.info(
-            f"Initializing config with filename={filename}"
-        )
+        logger.info(f"Initializing config with filename={filename}")
         if filename is None:
             filename = "config.json"
         self.filename = filename
@@ -30,10 +44,26 @@ class Config(OrderedDict):
         try:
             return self._api_keys[name]
         except LookupError:
-            self._api_keys[name] = value = self.get("api_keys", {}).get(
-                name, default
-            )
+            self._api_keys[name] = value = self.get("api_keys", {}).get(name, default)
             return value
+
+    def get_proxy(self, plugin_name: Optional[str] = None) -> Optional[ProxyOptions]:
+        if plugin_name is None:
+            proxy = "default"
+        else:
+            proxy = self["plugins"].get(plugin_name, {}).get("http_proxy")
+            if proxy is None:
+                return None
+
+        proxy_params = self.get("http_proxies")
+        if proxy_params is None:
+            raise ValueError("No http_proxies section found in config.json")
+
+        proxy_options = proxy_params.get(proxy)
+        if proxy_options is None:
+            return None
+
+        return ProxyOptions(**proxy_options)
 
     def load_config(self):
         """(re)loads the bot config from the config file"""
@@ -45,10 +75,7 @@ class Config(OrderedDict):
             )
             print("No config file found! Bot shutting down in five seconds.")
             print("Copy 'config.default.json' to 'config.json' for defaults.")
-            print(
-                "For help, see htps://github.com/TotallyNotRobots/CloudBot. "
-                "Thank you for using CloudBot!"
-            )
+            print("For help, see htps://github.com/TotallyNotRobots/CloudBot. " "Thank you for using CloudBot!")
             time.sleep(5)
             sys.exit()
 

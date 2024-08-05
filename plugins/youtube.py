@@ -22,6 +22,14 @@ ytpl_re = re.compile(
 
 
 base_url = "https://www.googleapis.com/youtube/v3/"
+proxy: Optional[str] = None
+
+
+@hook.on_start()
+def load_youtube(bot):
+    global proxy
+    proxy_options = bot.config.get_proxy("youtube")
+    proxy = str(proxy_options) if proxy_options else None
 
 
 def remove_tags(text):
@@ -117,6 +125,7 @@ def get_video_info(video_url) -> "dict[str, str]":
         "writesubtitles": True,  # Request subtitles
         "allsubtitles": True,
         "writeautomaticsub": True,
+        "proxy": proxy,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -148,6 +157,7 @@ def search_youtube_videos(query, max_results=10) -> "list[str]":
         "max_results": max_results,
         "format": "best",  # Choose the best available format
         "noplaylist": True,  # Do not extract playlists
+        "proxy": proxy,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
