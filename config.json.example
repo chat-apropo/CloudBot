@@ -139,7 +139,8 @@
         "giphy": "",
         "speech": "",
         "newsapi": "",
-        "webshare": ""
+        "webshare": "",
+        "github": ""
     },
     "database": "sqlite:///cloudbot.db",
     "location_bias_cc": null,

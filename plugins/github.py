@@ -1,15 +1,17 @@
 import re
+import shlex
+from dataclasses import dataclass
+from typing import Generator
 
 import requests
+from github import Auth, Github
 from requests import HTTPError
 
 from cloudbot import hook
-from cloudbot.util import formatting, web
+from cloudbot.util import colors, formatting, web
 
 shortcuts = {}
-url_re = re.compile(
-    r"(?:https?://github\.com/)?(?P<owner>[^/]+)/(?P<repo>[^/]+)"
-)
+url_re = re.compile(r"(?:https?://github\.com/)?(?P<owner>[^/]+)/(?P<repo>[^/]+)")
 
 
 def parse_url(url):
@@ -45,11 +47,7 @@ def issue_cmd(text, event):
     issue = args[1] if len(args) > 1 else None
 
     if issue:
-        r = requests.get(
-            "https://api.github.com/repos/{}/{}/issues/{}".format(
-                owner, repo, issue
-            )
-        )
+        r = requests.get("https://api.github.com/repos/{}/{}/issues/{}".format(owner, repo, issue))
 
         try:
             r.raise_for_status()
@@ -69,13 +67,9 @@ def issue_cmd(text, event):
         if j["state"] == "open":
             state = "\x033\x02Opened\x02\x0f by {}".format(j["user"]["login"])
         else:
-            state = "\x034\x02Closed\x02\x0f by {}".format(
-                j["closed_by"]["login"]
-            )
+            state = "\x034\x02Closed\x02\x0f by {}".format(j["closed_by"]["login"])
 
-        return "Issue #{} ({}): {} | {}: {}".format(
-            number, state, url, title, summary
-        )
+        return "Issue #{} ({}): {} | {}: {}".format(number, state, url, title, summary)
 
     r = requests.get(f"https://api.github.com/repos/{owner}/{repo}/issues")
 
@@ -87,3 +81,136 @@ def issue_cmd(text, event):
         return "Repository has no open issues."
 
     return f"Repository has {count} open issues."
+
+
+@dataclass
+class Result:
+    title: str
+    summary: str
+    url: str | None = None
+
+    def as_list(self):
+        summary = [formatting.truncate(line, 420) for line in (self.summary or "").split("\n")][:6]
+        return [formatting.truncate(f"\x02{self.title}\x02", 420)] + summary + [self.url] * bool(self.url)
+
+
+def remove_qualifiers(query: str) -> str:
+    args = query.split(" ")
+    i = 0
+    for i, arg in enumerate(args):
+        if ":" not in arg:
+            break
+    return " ".join(args[i:])
+
+
+def search_code(g: Github, query: str) -> Generator[Result, None, None]:
+    """<query> - Searches for code matching the query on GitHub."""
+    for result in g.search_code(query):
+        content = result.decoded_content.decode("utf-8").split("\n")
+
+        i = 0
+        needle = remove_qualifiers(query).lower()
+        for i, line in enumerate(content):
+            if needle in line.lower():
+                content[i] = f"{colors.get_color('green')}{line}"
+                break
+        else:
+            i = -1
+
+        i += 1
+        yield Result(
+            f"{result.repository.full_name} - {result.path}",
+            "\n".join(content[i - 4 : i + 4]),
+            result.html_url + f"#L{i}" * (i > 0),
+        )
+
+
+def search_issues(g: Github, query: str) -> Generator[Result, None, None]:
+    """<query> - Searches for issues matching the query on GitHub."""
+    for result in g.search_issues(query):
+        yield Result(
+            result.title,
+            result.body,
+            result.html_url,
+        )
+
+
+def search_repo(g: Github, query: str) -> Generator[Result, None, None]:
+    """<query> - Searches for repositories matching the query on GitHub."""
+    for result in g.search_repositories(query):
+        yield Result(
+            result.html_url,
+            result.description,
+        )
+
+
+def search_user(g: Github, query: str) -> Generator[Result, None, None]:
+    """<query> - Searches for users matching the query on GitHub."""
+    for result in g.search_users(query):
+        yield Result(
+            result.login,
+            result.bio or "",
+            result.html_url,
+        )
+
+
+commands = {
+    "code": search_code,
+    "issues": search_issues,
+    "repo": search_repo,
+    "user": search_user,
+}
+
+user_results = {}
+
+
+@hook.command("ghn", "ghnext", autohelp=False)
+def ghn_cmd(chan, nick):
+    """Next result in the for GitHub search"""
+    global user_results
+    next_result_generator = user_results.get(chan, {}).get(nick)
+    if not next_result_generator:
+        return "You haven't searched for anything yet. Use gh <subcommand> <query> to search."
+    try:
+        result = next_result_generator.__next__()
+    except StopIteration:
+        return "No more results."
+    return result.as_list()
+
+
+@hook.command("gh", "github", "repo", autohelp=False)
+def gh_cmd(text, event, reply, bot, nick, chan):
+    global user_results
+
+    arguments = shlex.split(text)
+    if not arguments:
+        return "Usage: gh <subcommand> [args] <query>"
+
+    cmd = arguments[0]
+    if cmd not in commands and cmd not in ("help", "-h", "--help"):
+        return f"Unknown subcommand: {cmd}. Try using help to see available subcommands."
+
+    if "help" in arguments or "-h" in arguments or "--help" in arguments:
+        return "Possible subcommands: " + ", ".join(commands.keys())
+
+    if cmd not in commands:
+        return "Unknown subcommand: " + cmd
+
+    func = commands[cmd]
+    input_args = arguments[1:]
+    query = " ".join(input_args)
+
+    access_token = bot.config.get("api_keys", {}).get("github", None)
+    if not access_token:
+        return "No GitHub access token configured."
+
+    auth = Auth.Token(access_token)
+    g = Github(auth=auth)
+
+    results = func(g, query)
+
+    if chan not in user_results:
+        user_results[chan] = {}
+
+    user_results[chan][nick] = results
+    return ghn_cmd(chan, nick)

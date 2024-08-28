@@ -61,3 +61,4 @@ wrapt==1.12.1
 yarl==1.7.2
 youtube-search==2.1.0
 python-magic==0.4.27
+PyGithub==2.4.0
