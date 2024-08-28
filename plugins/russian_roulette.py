@@ -17,8 +17,6 @@ def get_barrel():
 def rr(text, bot, chan, nick, reply):
     """- Start a game of Russian Roulette and test it."""
     barrel = get_barrel()
-    if len(barrel) == BULLETS:
-        reply("Barrel reloaded. Spinning...")
     shot = barrel.pop()
     if shot:
         reply(f"BANG! 🩸🤯 🔫   -  {get_color('red')}You died")
