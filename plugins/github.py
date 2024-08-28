@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Generator
 
 import requests
-from github import Auth, Github
+from github import Auth, Github, GithubException
 from requests import HTTPError
 
 from cloudbot import hook
@@ -207,10 +207,13 @@ def gh_cmd(text, event, reply, bot, nick, chan):
     auth = Auth.Token(access_token)
     g = Github(auth=auth)
 
-    results = func(g, query)
+    try:
+        results = func(g, query)
 
-    if chan not in user_results:
-        user_results[chan] = {}
+        if chan not in user_results:
+            user_results[chan] = {}
 
-    user_results[chan][nick] = results
-    return ghn_cmd(chan, nick)
+        user_results[chan][nick] = results
+        return ghn_cmd(chan, nick)
+    except GithubException as e:
+        return f"Error: {e}"
