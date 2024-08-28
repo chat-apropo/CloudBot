@@ -18,13 +18,15 @@ def rr(text, bot, chan, nick, reply):
     """- Start a game of Russian Roulette and test it."""
     barrel = get_barrel()
     if len(barrel) == BULLETS:
-        reply("Barrel spinning...")
+        reply("Barrel reloaded. Spinning...")
     shot = barrel.pop()
     if shot:
         reply(f"BANG! 🩸🤯 🔫   -  {get_color('red')}You died")
         get_barrel.cache_clear()
         return
-    reply(f"{get_color('green')}You live{get_format('clear')}. \x02{len(barrel)}\x02 bullets left. Use \x1d.rrs\x1d to re-spin the barrel.")
+    reply(
+        f"{get_color('green')}You live{get_format('clear')}. \x02{len(barrel)}\x02 bullets left. Use \x1d.rrs\x1d to re-spin the barrel."
+    )
 
 
 @hook.command("rrspin", "rrs", autohelp=False)
