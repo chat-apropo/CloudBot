@@ -31,10 +31,6 @@ def rr(text, bot, chan, nick, reply):
 
 @hook.command("rrspin", "rrs", autohelp=False)
 def respun(text, bot, chan, nick, reply):
-    """- Respun the barrel."""
-    barrel = get_barrel()
-    if len(barrel) == BULLETS:
-        reply("Start a new game with \x1d.rr\x1d first")
-        return
+    """- Respins the russian roulette gun's barrel."""
     get_barrel.cache_clear()
     reply("Barrel re-spinning...")
