@@ -139,7 +139,7 @@ def search_repo(g: Github, query: str) -> Generator[Result, None, None]:
     """<query> - Searches for repositories matching the query on GitHub."""
     for result in g.search_repositories(query):
         yield Result(
-            f"{result.html_url}  \x02\x1d{result.language}\x1d",
+            f"{result.html_url} 📄\x02\x1d{result.language}\x1d ⭐{result.stargazers_count}",
             result.description,
         )
 
@@ -148,7 +148,7 @@ def search_user(g: Github, query: str) -> Generator[Result, None, None]:
     """<query> - Searches for users matching the query on GitHub."""
     for result in g.search_users(query):
         yield Result(
-            result.login,
+            f"{result.name} 🌎\x02\x1d{result.location}\x1d - \x02{result.followers}\x02 followers and \x02{result.public_repos}\x02 repos",
             result.bio or "",
             result.html_url,
         )
