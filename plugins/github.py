@@ -1,8 +1,10 @@
 import re
 import shlex
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Generator
 
+import pytz
 import requests
 from github import Auth, Github, GithubException
 from requests import HTTPError
@@ -85,13 +87,26 @@ def issue_cmd(text, event):
 
 @dataclass
 class Result:
-    title: str
+    header: str
     summary: str
-    url: str | None = None
+    bottom: str | None = None
 
     def as_list(self):
         summary = [formatting.truncate(line, 420) for line in (self.summary or "").split("\n")][:6]
-        return [formatting.truncate(f"\x02{self.title}\x02", 420)] + summary + [self.url] * bool(self.url)
+        return [formatting.truncate(f"\x02{self.header}\x02", 420)] + summary + [self.bottom] * bool(self.bottom)
+
+
+def format_date(date: datetime) -> str:
+    """Format a datetime to either %d minutes ago %d hours ago, %d days ago or a formatted date without time."""
+    now = datetime.now(pytz.utc)
+    delta = now - date
+    if delta.days > 0:
+        return date.strftime("%Y-%m-%d")
+    if delta.seconds < 60:
+        return f"{delta.seconds} seconds ago"
+    if delta.seconds < 3600:
+        return f"{delta.seconds // 60} minutes ago"
+    return f"{delta.seconds // 3600} hours ago"
 
 
 def remove_qualifiers(query: str) -> str:
@@ -138,9 +153,19 @@ def search_issues(g: Github, query: str) -> Generator[Result, None, None]:
 def search_repo(g: Github, query: str) -> Generator[Result, None, None]:
     """<query> - Searches for repositories matching the query on GitHub."""
     for result in g.search_repositories(query):
+        commit = None
+        for commit in result.get_commits(result.default_branch):
+            break
+        br = "\n"
         yield Result(
             f"{result.html_url} 📄\x02\x1d{result.language}\x1d ⭐{result.stargazers_count}",
-            result.description,
+            (
+                formatting.truncate(
+                    f"\x1d{commit.commit.message.strip().replace(br, ' ')}\x1d ⏲️ \x02{format_date(commit.commit.author.date)}\x02"
+                )
+            )
+            * bool(commit)
+            + f"\n{result.description}",
         )
 
 
