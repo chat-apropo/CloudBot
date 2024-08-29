@@ -121,7 +121,7 @@ def search_code(g: Github, query: str) -> Generator[Result, None, None]:
         yield Result(
             f"{result.repository.full_name} - {result.path}",
             "\n".join(content[i - 4 : i + 4]),
-            result.html_url + f"#L{i}" * (i > 0),
+            result.html_url + f"#L{i}" * (i > 0) + f"    \x02\x1d{result.repository.language}\x1d",
         )
 
 
@@ -139,7 +139,7 @@ def search_repo(g: Github, query: str) -> Generator[Result, None, None]:
     """<query> - Searches for repositories matching the query on GitHub."""
     for result in g.search_repositories(query):
         yield Result(
-            result.html_url,
+            f"{result.html_url}  \x02\x1d{result.language}\x1d",
             result.description,
         )
 
