@@ -124,7 +124,15 @@ def directions(text, event, reply, bot, nick, chan):
             mode = step["travel_mode"].lower()
             emoji = emoji_map.get(mode, "🚶")
             distance = step.get("distance", {}).get("text", "")
-            reply(f"{emoji} {distance}: {html_to_irc(step['html_instructions'])}")
+            msg = f"    {emoji} {distance}: {html_to_irc(step['html_instructions'])}"
+            if mode == "transit":
+                arrival_time = step.get("transit_details", {}).get("arrival_time", {}).get("text", "")
+                headsign = step.get("transit_details", {}).get("headsign", "")
+                num_stops = step.get("transit_details", {}).get("num_stops", "")
+                msg += f" - {headsign} ({arrival_time}) - {num_stops} stops"
+            reply(msg)
+
             i += 1
+
         if i >= MAX_OUTPUT_LINES:
             break
