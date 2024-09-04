@@ -203,7 +203,7 @@ def ghn_cmd(chan, nick):
     return result.as_list()
 
 
-@hook.command("gh", "github", "repo", autohelp=False)
+@hook.command("gh", "github", autohelp=False)
 def gh_cmd(text, event, reply, bot, nick, chan):
     global user_results
 
@@ -239,6 +239,7 @@ def gh_cmd(text, event, reply, bot, nick, chan):
             user_results[chan] = {}
 
         user_results[chan][nick] = results
-        return ghn_cmd(chan, nick)
+        for part in ghn_cmd(chan, nick):
+            reply(part)
     except GithubException as e:
         return f"Error: {e}"
