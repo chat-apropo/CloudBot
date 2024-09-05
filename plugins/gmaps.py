@@ -118,7 +118,8 @@ def directions(text, event, reply, bot, nick, chan):
         to = leg["end_address"]
         reply(f"📍 \x02{from_}  -  {to} ({distance}, {duration})")
         for step in leg["steps"]:
-            if i >= MAX_OUTPUT_LINES:
+            # Only limit in channels
+            if i >= MAX_OUTPUT_LINES and chan.startswith("#"):
                 reply(f"🔽 More steps: {len(leg['steps']) - i}")
                 break
             mode = step["travel_mode"].lower()
