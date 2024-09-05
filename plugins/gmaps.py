@@ -98,7 +98,7 @@ def directions(text, event, reply, bot, nick, chan):
         directions = gmaps.directions(
             points[0],
             points[1],
-            mode=mode,
+            mode=mode or "transit",
             departure_time=now,
             alternatives=True,
         )
@@ -120,7 +120,9 @@ def directions(text, event, reply, bot, nick, chan):
         for step in leg["steps"]:
             # Only limit in channels
             if i >= MAX_OUTPUT_LINES and chan.startswith("#"):
-                reply(f"🔽 More steps: {len(leg['steps']) - i}")
+                reply(
+                    f"🔽 More steps: {len(leg['steps']) - i}. Repeat the command in a private message for full details."
+                )
                 break
             mode = step["travel_mode"].lower()
             emoji = emoji_map.get(mode, "🚶")
