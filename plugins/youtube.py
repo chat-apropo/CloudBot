@@ -1,10 +1,16 @@
 import re
+from functools import lru_cache
 from typing import Iterable, Mapping, Match, Optional, Union
 from urllib.parse import quote
 
 import isodate
 import requests
-import yt_dlp
+from pyyoutube import Client
+from youtube_transcript_api import (
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    YouTubeTranscriptApi,
+)
 
 from cloudbot import hook
 from cloudbot.bot import bot
@@ -22,14 +28,12 @@ ytpl_re = re.compile(
 
 
 base_url = "https://www.googleapis.com/youtube/v3/"
-proxy: Optional[str] = None
 
 
-@hook.on_start()
-def load_youtube(bot):
-    global proxy
-    proxy_options = bot.config.get_proxy("youtube")
-    proxy = str(proxy_options) if proxy_options else None
+@lru_cache
+def get_client() -> Client:
+    api_key = bot.config.get("api_keys", {}).get("google", None)
+    return Client(api_key=api_key)
 
 
 def remove_tags(text):
@@ -115,58 +119,54 @@ def vtt2plantext(text: str) -> str:
     return " ".join(lines)
 
 
-def get_video_info(video_url) -> "dict[str, str]":
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "force_generic_extractor": True,  # Use generic extractor to get info
-        "simulate": True,  # Don't download, just simulate
-        "format": "best",  # Choose the best available format
-        "writesubtitles": True,  # Request subtitles
-        "allsubtitles": True,
-        "writeautomaticsub": True,
-        "proxy": proxy,
+def get_video_info(client: Client, video_url: str) -> "dict[str, str]":
+    video_id = get_video_id(video_url)
+    videos = client.videos.list(video_id=video_id)
+    if videos is None or not videos.items:
+        return {"title": "Title not available", "duration": "Duration not available", "transcript": ""}
+
+    video = videos.items[0]
+    video_info = {
+        "title": video.snippet.title,
+        "duration": video.contentDetails.duration,
+        "transcript": "",
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=False) or {}
-        video_info = {
-            "title": info_dict.get("title", "Title not available"),
-            "duration": info_dict.get("duration", "Duration not available"),
-            "transcript": "",
-        }
+    prefered_languages = ["en"]
+    try:
+        transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+        try:
+            subtitles = transcripts.find_transcript(prefered_languages).fetch()
+        except NoTranscriptFound:
+            manual = transcripts._manually_created_transcripts
+            generated = transcripts._generated_transcripts
+            choice = manual or generated
+            if choice:
+                transcript = choice[list(choice.keys())[0]]
+                subtitles = transcript.fetch()
+            else:
+                subtitles = None
 
-        subtitles = info_dict.get("requested_subtitles")
-        if subtitles:
-            language = "en" if "en" in subtitles else list(subtitles.keys())[0]
-            transcript_url = subtitles[language]["url"]
-            response = requests.get(transcript_url, stream=True)
-            if response.ok:
-                video_info["transcript"] = vtt2plantext(response.text)
+    except TranscriptsDisabled:
+        subtitles = None
 
-        return video_info
+    if subtitles:
+        for part in subtitles:
+            video_info["transcript"] += part["text"] + " "
+
+    return video_info
 
 
-def search_youtube_videos(query, max_results=10) -> "list[str]":
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "force_generic_extractor": True,  # Use generic extractor to get info
-        "extract_flat": True,  # Extract flat JSON structure
-        "default_search": "auto",  # Use the best search method supported by yt-dlp
-        "max_results": max_results,
-        "format": "best",  # Choose the best available format
-        "noplaylist": True,  # Do not extract playlists
-        "proxy": proxy,
-    }
+def search_youtube_videos(client: Client, query: str, max_results: int = 10) -> "list[str]":
+    video_urls = []
+    search = client.search.list(q=quote(query), max_results=max_results)
+    if search is None or not search.items:
+        return []
+    for item in search.items:
+        if item.id.kind == "youtube#video":
+            video_urls.append(f"https://www.youtube.com/watch?v={item.id.videoId}")
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        search_results = ydl.extract_info(f"ytsearch{max_results}:{quote(query)}", download=False) or {}
-        video_urls = []
-        for result in search_results.get("entries", []):
-            if result:
-                video_urls.append(result["url"])
-        return video_urls
+    return video_urls
 
 
 class APIError(Exception):
@@ -325,8 +325,9 @@ def get_video_id(text: str) -> str:
 
 @hook.regex(youtube_re)
 def youtube_url(match: Match[str]) -> str:
-    result = get_video_info(match.group(1))
-    time = timeformat.format_time(int(result["duration"]), simple=True)
+    client = get_client()
+    result = get_video_info(client, match.group(1))
+    time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"\x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
         420,
@@ -339,9 +340,10 @@ user_results = {}
 @hook.command("ytn")
 def youtube_next(text: str, nick: str, reply) -> str:
     global user_results
+    client = get_client()
     url = user_results[nick].pop(0)
-    result = get_video_info(url)
-    time = timeformat.format_time(int(result["duration"]), simple=True)
+    result = get_video_info(client, url)
+    time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"{url}  -  \x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
         420,
@@ -355,7 +357,8 @@ def youtube(text: str, nick: str, reply) -> str:
     :param text: User input
     """
     global user_results
-    results = search_youtube_videos(text)
+    client = get_client()
+    results = search_youtube_videos(client, text)
     user_results[nick] = results
     return youtube_next(text, nick, reply)
 

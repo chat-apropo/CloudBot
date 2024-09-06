@@ -62,3 +62,5 @@ yarl==1.7.2
 youtube-search==2.1.0
 python-magic==0.4.27
 PyGithub==2.4.0
+python-youtube==0.9.5
+youtube-transcript-api==0.6.2
