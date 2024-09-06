@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import requests
 
 from cloudbot import hook
@@ -36,6 +38,53 @@ def check_status(status):
     return None
 
 
+class GeolocationException(Exception):
+    pass
+
+
+@dataclass
+class GoogleLocation:
+    lat: float
+    lng: float
+    url: str
+    tags: str
+    location_name: str
+
+    def __str__(self):
+        return f"\x02{self.location_name}\x02 - {self.url} ({self.tags})"
+
+    @staticmethod
+    def from_address(text: str, dev_key: str) -> "GoogleLocation":
+        # Use the Geocoding API to get co-ordinates from the input
+        params = {"address": text, "key": dev_key}
+        if bias:
+            params["region"] = bias
+
+        r = requests.get(geocode_api, params=params)
+        r.raise_for_status()
+        json = r.json()
+
+        error = check_status(json["status"])
+        if error:
+            raise GeolocationException(error)
+
+        result = json["results"][0]
+
+        location_name = result["formatted_address"]
+        location = result["geometry"]["location"]
+        formatted_location = "{lat},{lng},16z".format(**location)
+
+        url = "https://google.com/maps/@" + formatted_location + "/data=!3m1!1e3"
+        tags = result["types"]
+
+        # if 'political' is not the only tag, remove it.
+        if not tags == ["political"]:
+            tags = [x for x in result["types"] if x != "political"]
+
+        tags = ", ".join(tags).replace("_", " ")
+        return GoogleLocation(location["lat"], location["lng"], url, tags, location_name)
+
+
 @hook.command("locate", "maps")
 def locate(text):
     """<location> - Finds <location> on Google Maps."""
@@ -43,32 +92,9 @@ def locate(text):
     if not dev_key:
         return "This command requires a Google Developers Console API key."
 
-    # Use the Geocoding API to get co-ordinates from the input
-    params = {"address": text, "key": dev_key}
-    if bias:
-        params["region"] = bias
+    try:
+        location = GoogleLocation.from_address(text, dev_key)
+    except GeolocationException as e:
+        return str(e)
 
-    r = requests.get(geocode_api, params=params)
-    r.raise_for_status()
-    json = r.json()
-
-    error = check_status(json["status"])
-    if error:
-        return error
-
-    result = json["results"][0]
-
-    location_name = result["formatted_address"]
-    location = result["geometry"]["location"]
-    formatted_location = "{lat},{lng},16z".format(**location)
-
-    url = "https://google.com/maps/@" + formatted_location + "/data=!3m1!1e3"
-    tags = result["types"]
-
-    # if 'political' is not the only tag, remove it.
-    if not tags == ["political"]:
-        tags = [x for x in result["types"] if x != "political"]
-
-    tags = ", ".join(tags).replace("_", " ")
-
-    return f"\x02{location_name}\x02 - {url} ({tags})"
+    return str(location)

@@ -1,11 +1,16 @@
+import re
 import shlex
+import tempfile
 from datetime import datetime, timedelta
 
 import googlemaps
 import pytz
+from streetview import get_panorama, get_streetview, search_panoramas
 
 from cloudbot import hook
 from cloudbot.util.formatting import html_to_irc
+from plugins.huggingface import FileIrcResponseWrapper
+from plugins.locate import GeolocationException, GoogleLocation
 
 MAX_HOURLY_REQUESTS = 30
 MAX_OUTPUT_LINES = 10
@@ -34,12 +39,12 @@ emoji_map = {
     "transit": "🚆",
 }
 
+lat_lng_re = re.compile(r"(-?\d+\.\d+),\s*(-?\d+\.\d+)")
+
 last_hour_usages = []
 
 
-@hook.command("gd", "gmd", "directions", autohelp=False)
-def directions(text, event, reply, bot, nick, chan):
-    """<type> <origin> to <destination> - Get directions from Google Maps"""
+def ratelimit():
     global last_hour_usage
 
     now = datetime.now(pytz.timezone("UTC"))
@@ -51,6 +56,14 @@ def directions(text, event, reply, bot, nick, chan):
             break
 
     if len(last_hour_usages) >= MAX_HOURLY_REQUESTS:
+        return True
+    return False
+
+
+@hook.command("gd", "gmd", "directions", autohelp=False)
+def directions(text, event, reply, bot, nick, chan):
+    """<type> <origin> to <destination> - Get directions from Google Maps"""
+    if ratelimit():
         return "Too many requests. Please try again later."
 
     api_key = bot.config.get("api_keys", {}).get("google", None)
@@ -139,3 +152,41 @@ def directions(text, event, reply, bot, nick, chan):
 
         if i >= MAX_OUTPUT_LINES:
             break
+
+
+@hook.command("sv", "streetview", autohelp=False)
+def streetview(text, reply, bot):
+    """<location> - Get a street view image from Google Maps"""
+    text = text.strip()
+    if not text:
+        return "Usage: sv <location>"
+
+    api_key = bot.config.get("api_keys", {}).get("google", None)
+    if not api_key:
+        return "This command requires a Google API key."
+
+    if ratelimit():
+        return "Too many requests. Please try again later."
+
+    if re.match(lat_lng_re, text):
+        lat, lng = map(float, text.split(","))
+        panos = search_panoramas(lat=lat, lon=lng)
+        location_name = f"{lat}, {lng}"
+    else:
+        try:
+            location = GoogleLocation.from_address(text, api_key)
+        except GeolocationException as e:
+            return str(e)
+        location_name = location.location_name
+        panos = search_panoramas(lat=location.lat, lon=location.lng)
+
+    if not panos:
+        return "No panoramas found for this location."
+
+    pano = panos[0]
+    streetview = get_streetview(pano.pano_id, api_key=api_key)
+    with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
+        streetview.save(f.name)
+        image_url = FileIrcResponseWrapper.upload_file(f.name, "st")
+
+    return f"📸 {location_name} - {image_url}"
