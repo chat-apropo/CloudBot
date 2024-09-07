@@ -49,20 +49,14 @@ class GoogleLocation:
     url: str
     tags: str
     location_name: str
+    country: str
 
     def __str__(self):
         return f"\x02{self.location_name}\x02 - {self.url} ({self.tags})"
 
     @staticmethod
-    def from_address(text: str, dev_key: str) -> "GoogleLocation":
-        # Use the Geocoding API to get co-ordinates from the input
-        params = {"address": text, "key": dev_key}
-        if bias:
-            params["region"] = bias
-
-        r = requests.get(geocode_api, params=params)
-        r.raise_for_status()
-        json = r.json()
+    def _from_api_response(response: requests.Response) -> "GoogleLocation":
+        json = response.json()
 
         error = check_status(json["status"])
         if error:
@@ -73,6 +67,11 @@ class GoogleLocation:
         location_name = result["formatted_address"]
         location = result["geometry"]["location"]
         formatted_location = "{lat},{lng},16z".format(**location)
+        countries = [x["long_name"] for x in result["address_components"] if "country" in x["types"]]
+        if not countries:
+            country = ""
+        else:
+            country = countries[0]
 
         url = "https://google.com/maps/@" + formatted_location + "/data=!3m1!1e3"
         tags = result["types"]
@@ -82,7 +81,25 @@ class GoogleLocation:
             tags = [x for x in result["types"] if x != "political"]
 
         tags = ", ".join(tags).replace("_", " ")
-        return GoogleLocation(location["lat"], location["lng"], url, tags, location_name)
+        return GoogleLocation(location["lat"], location["lng"], url, tags, location_name, country)
+
+    @staticmethod
+    def from_address(text: str, dev_key: str) -> "GoogleLocation":
+        # Use the Geocoding API to get co-ordinates from the input
+        params = {"address": text, "key": dev_key}
+        if bias:
+            params["region"] = bias
+
+        return GoogleLocation._from_api_response(requests.get(geocode_api, params=params))
+
+    @staticmethod
+    def from_lat_lng(lat: float, lng: float, dev_key: str) -> "GoogleLocation":
+        # Use the Geocoding API to get co-ordinates from the input
+        params = {"latlng": f"{lat},{lng}", "key": dev_key}
+        if bias:
+            params["region"] = bias
+
+        return GoogleLocation._from_api_response(requests.get(geocode_api, params=params))
 
 
 @hook.command("locate", "maps")

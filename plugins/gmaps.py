@@ -1,19 +1,27 @@
+import json
+import random
 import re
 import shlex
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import googlemaps
 import pytz
-from streetview import get_panorama, get_streetview, search_panoramas
+import requests
+from fuzzywuzzy import fuzz
+from PIL.Image import Image
+from streetview import get_streetview, search_panoramas
 
 from cloudbot import hook
+from cloudbot.util import timeformat
 from cloudbot.util.formatting import html_to_irc
 from plugins.huggingface import FileIrcResponseWrapper
 from plugins.locate import GeolocationException, GoogleLocation
 
 MAX_HOURLY_REQUESTS = 30
 MAX_OUTPUT_LINES = 10
+MIN_GUESS_GAME_DURATION = 60  # seconds
 
 # "driving", "walking", "bicycling" or "transit"
 
@@ -57,6 +65,8 @@ def ratelimit():
 
     if len(last_hour_usages) >= MAX_HOURLY_REQUESTS:
         return True
+
+    last_hour_usages.append(now)
     return False
 
 
@@ -155,6 +165,13 @@ def directions(text, event, reply, bot, nick, chan):
             break
 
 
+def upload_image(image: Image) -> str:
+    with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
+        image.save(f.name)
+        image_url = FileIrcResponseWrapper.upload_file(f.name, "st")
+    return image_url
+
+
 @hook.command("sv", "streetview", autohelp=False)
 def streetview(text, reply, bot):
     """<location> - Get a street view image from Google Maps. Possible parameters are: fov, heading, pitch, width, height - e.g. 'sv 40.7128, -74.0060 fov:120'"""
@@ -184,7 +201,11 @@ def streetview(text, reply, bot):
     if re.match(lat_lng_re, text):
         lat, lng = map(float, text.split(","))
         panos = search_panoramas(lat=lat, lon=lng)
-        location_name = f"{lat}, {lng}"
+        try:
+            location = GoogleLocation.from_lat_lng(lat, lng, api_key)
+            location_name = location.location_name
+        except GeolocationException as e:
+            location_name = f"{lat}, {lng}"
     else:
         try:
             location = GoogleLocation.from_address(text, api_key)
@@ -198,8 +219,100 @@ def streetview(text, reply, bot):
 
     pano = panos[0]
     streetview = get_streetview(pano.pano_id, api_key=api_key, **params)
-    with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
-        streetview.save(f.name)
-        image_url = FileIrcResponseWrapper.upload_file(f.name, "st")
+    image_url = upload_image(streetview)
 
     return f"📸 {location_name} - {image_url}"
+
+
+@dataclass
+class GuessGame:
+    location: GoogleLocation
+    start_time: datetime
+    image_url: str
+
+
+guess_games: "dict[str, GuessGame]" = {}
+
+
+def new_guess_game(bot, chan) -> str:
+    api_key = bot.config.get("api_keys", {}).get("google", None)
+    if not api_key:
+        return "This command requires a Google API key."
+
+    if ratelimit():
+        return "Too many requests. Please try again later."
+
+    def get_random_land_location() -> GoogleLocation:
+        countries: "dict[str, str]" = json.loads(open("plugins/ISO3166-1.alpha2.json").read())
+        country_code = random.choice(list(countries.keys()))
+        country_name = countries[country_code]
+
+        api_url = f"https://api.3geonames.org/randomland.{country_code}.json"
+        r = requests.get(api_url)
+        r.raise_for_status()
+        try:
+            response_json = r.json()
+        except json.JSONDecodeError:
+            raise ValueError("API Overloaded. Please try again later.")
+        lat = float(response_json["nearest"]["latt"])
+        lng = float(response_json["nearest"]["longt"])
+
+        try:
+            location = GoogleLocation.from_lat_lng(lat, lng, api_key)
+        except GeolocationException as e:
+            raise ValueError(str(e))
+
+        location.country = location.country or country_name
+        return location
+
+    max_attempts = 20
+    for _ in range(max_attempts):
+        try:
+            location = get_random_land_location()
+        except ValueError:
+            continue
+        panos = search_panoramas(lat=location.lat, lon=location.lng)
+        if panos:
+            streetview = get_streetview(panos[0].pano_id, api_key=api_key)
+            break
+    else:
+        return "Could not find a location with a street view image."
+
+    image_url = upload_image(streetview)
+
+    guess_games[chan] = GuessGame(location, datetime.now(pytz.timezone("UTC")), image_url)
+    return f"🌎 Try to guess what country is: {image_url}"
+
+
+@hook.command("geoguess", autohelp=False)
+def geo_guess(text, chan, nick, reply, bot):
+    """[country] - Play a game of GeoGuessr with a random location. Use 'reveal' to show the answer."""
+    global guess_games
+    text = text.strip()
+    if text == "reveal":
+        if chan not in guess_games:
+            return "There is no active GeoGuess game in this channel. Start one with '.geoguess'."
+        location = guess_games[chan].location
+        del guess_games[chan]
+        return f"🌎 The location was: {location} - Try again!"
+
+    if text:
+        if chan not in guess_games:
+            return "There is no active GeoGuess game in this channel. Start one with '.geoguess'."
+
+        location = guess_games[chan].location
+        if fuzz.ratio(text.casefold(), location.country.casefold()) > 80:
+            now = datetime.now(pytz.timezone("UTC"))
+            start_time = guess_games[chan].start_time
+            del guess_games[chan]
+            return f"🎉 {nick} guessed the country correctly! It was {location.location_name}. Game duration: {timeformat.time_since(start_time, now)}"
+        else:
+            return f"🔍 Incorrect guess. Try again!"
+
+    if chan in guess_games and guess_games[chan].start_time + timedelta(seconds=MIN_GUESS_GAME_DURATION) > datetime.now(
+        pytz.timezone("UTC")
+    ):
+        return f"There is already an active GeoGuess game in this channel {guess_games[chan].image_url} - Try to guess the country with '.geoguess <country>'."
+
+    reply("🔍 Starting a new GeoGuess game...")
+    return new_guess_game(bot, chan)
