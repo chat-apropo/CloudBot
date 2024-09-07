@@ -39,7 +39,7 @@ emoji_map = {
     "transit": "🚆",
 }
 
-lat_lng_re = re.compile(r"(-?\d+\.\d+),\s*(-?\d+\.\d+)")
+lat_lng_re = re.compile(r"^\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)\s*$")
 
 last_hour_usages = []
 
@@ -105,6 +105,7 @@ def directions(text, event, reply, bot, nick, chan):
         return usage_msg
 
     reply(f"🔍 Searching directions from '{points[0]}' to '{points[1]}' using '{mode or 'all'}'")
+    now = datetime.now(pytz.timezone("UTC"))
     last_hour_usages.append(now)
 
     try:
@@ -156,7 +157,7 @@ def directions(text, event, reply, bot, nick, chan):
 
 @hook.command("sv", "streetview", autohelp=False)
 def streetview(text, reply, bot):
-    """<location> - Get a street view image from Google Maps"""
+    """<location> - Get a street view image from Google Maps. Possible parameters are: fov, heading, pitch, width, height - e.g. 'sv 40.7128, -74.0060 fov:120'"""
     text = text.strip()
     if not text:
         return "Usage: sv <location>"
@@ -167,6 +168,18 @@ def streetview(text, reply, bot):
 
     if ratelimit():
         return "Too many requests. Please try again later."
+
+    # Parameters have the format key:value
+    params = {}
+    for param in re.findall(r"\b(\w+):(-?\d+\.?\d*)\b", text):
+        key, value = param
+        if key in ["fov", "heading", "pitch", "width", "height"]:
+            text = text.replace(f"{key}:{value}", "")
+            params[key] = float(value)
+        else:
+            return f"Invalid parameter: {key}"
+
+    text = text.strip()
 
     if re.match(lat_lng_re, text):
         lat, lng = map(float, text.split(","))
@@ -184,7 +197,7 @@ def streetview(text, reply, bot):
         return "No panoramas found for this location."
 
     pano = panos[0]
-    streetview = get_streetview(pano.pano_id, api_key=api_key)
+    streetview = get_streetview(pano.pano_id, api_key=api_key, **params)
     with tempfile.NamedTemporaryFile(suffix=".jpg") as f:
         streetview.save(f.name)
         image_url = FileIrcResponseWrapper.upload_file(f.name, "st")
