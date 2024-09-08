@@ -12,7 +12,7 @@ except Exception as e:
     raise Exception("Error: missing api key for openweather") from e
 
 
-@hook.command("we")
+@hook.command("we", "weather")
 def weater(text):
     """<city> - Get the current weather of <city>"""
     x = curweath.by_cname(text)

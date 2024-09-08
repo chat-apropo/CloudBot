@@ -7,6 +7,7 @@ import requests
 
 from cloudbot import hook
 from cloudbot.util import formatting
+from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
 
