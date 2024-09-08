@@ -50,7 +50,7 @@ def get_html(*args, **kwargs):
     return html.fromstring(get(*args, **kwargs))
 
 
-def parse_soup(text, features=None, **kwargs):
+def parse_soup(text, features=None, **kwargs) -> BeautifulSoup:
     """
     Parse HTML using BeautifulSoup
 

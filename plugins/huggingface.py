@@ -76,6 +76,8 @@ ALIASES = {
     "speak": ModelAliasPreset(id="facebook/mms-tts-eng"),
     "bert": ModelAliasPreset(id="google-bert/bert-base-uncased"),
     "porn": ModelAliasPreset(id="huggingtweets/porns_xx"),
+    "summarize": ModelAliasPreset(id="Falconsai/text_summarization"),
+    "prompt": ModelAliasPreset(id="succinctly/text2image-prompt-generator"),
 }
 
 ALIASED_MODELS_ID_MAP = {preset.id: preset for preset in ALIASES.values()}
@@ -327,7 +329,43 @@ def hf(bot, text: str, chan: str, nick: str):
     return hfn("", chan, nick)
 
 
-def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
+def process_response(response: requests.Response, chan: str, nick: str) -> str | List[str]:
+    try:
+        irc_reponse = irc_response_builder(response)
+        if isinstance(irc_reponse, FileIrcResponseWrapper):
+            daycount = int(time()) // 86400
+            hashed_string = hashlib.sha256(
+                ((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()
+            ).hexdigest()[:12]
+            return irc_reponse.as_text(hashed_string)
+
+        return irc_reponse.as_text()
+
+    except requests.exceptions.HTTPError as e:
+        return f"error: {e} - {e.response.text}"
+
+
+def attempt_inference(
+    client: HuggingFaceClient, text: str, model: str, reply, fail_on_model_loading=False
+) -> requests.Response | str:
+    try:
+        response = client.send(text, model)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        check = None
+        try:
+            check = HuggingFaceClient.check_loading_model(e.response.json())
+        except json.JSONDecodeError:
+            pass
+        if check and check[1] is not None and not fail_on_model_loading:
+            reply(check[0])
+            sleep(check[1])
+            return attempt_inference(client, text, model, reply, True)
+        return f"error: {e} - {e.response.text}"
+    return response
+
+
+def _hfi(bot, reply, text: str, chan: str, nick: str):
     global current_queue
     api_key = bot.config.get_api_key("huggingface")
     if not api_key:
@@ -347,36 +385,15 @@ def _hfi(bot, reply, text: str, chan: str, nick: str, is_retry=False):
             return f"Cannot pick model {model} because there are only {len(results)} results"
         model = results[int(model) - 1].modelId
 
-    try:
-        response = client.send(text, model)
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        check = None
-        try:
-            check = HuggingFaceClient.check_loading_model(e.response.json())
-        except json.JSONDecodeError:
-            pass
-        if check is not None and not is_retry:
-            if check[1] is not None:
-                reply(check[0])
-                sleep(check[1])
-                return _hfi(bot, reply, model + " " + text, chan, nick, is_retry=True)
-            return
-        return f"error: {e} - {e.response.text}"
-
-    try:
-        irc_reponse = irc_response_builder(response)
-        if isinstance(irc_reponse, FileIrcResponseWrapper):
-            daycount = int(time()) // 86400
-            hashed_string = hashlib.sha256(
-                ((chan or nick or FileIrcResponseWrapper.BIN) + str(daycount)).encode()
-            ).hexdigest()[:12]
-            return irc_reponse.as_text(hashed_string)
-
-        return irc_reponse.as_text()
-
-    except requests.exceptions.HTTPError as e:
-        return f"error: {e} - {e.response.text}"
+    response = attempt_inference(client, text, model, reply)
+    if isinstance(response, str):
+        return response
+    txt = process_response(response, chan, nick)
+    if isinstance(txt, str):
+        return formatting.truncate(txt, 400)
+    elif isinstance(txt, list):
+        return [formatting.truncate(t, 400) for t in txt]
+    return txt
 
 
 @hook.command("hfinference", "hfi")
