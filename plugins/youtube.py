@@ -1,7 +1,7 @@
 import re
 from functools import lru_cache
 from typing import Iterable, Mapping, Match, Optional, Union
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 import isodate
 import requests
@@ -119,8 +119,15 @@ def vtt2plantext(text: str) -> str:
     return " ".join(lines)
 
 
-def get_video_info(client: Client, video_url: str) -> "dict[str, str]":
-    video_id = get_video_id(video_url)
+def get_video_info(client: Client, video_url: str | None = None, video_id: str | None = None) -> "dict[str, str]":
+    if not video_id and not video_url:
+        raise ValueError("Must provide either video URL or video ID")
+
+    if video_url:
+        video_id = get_video_id(video_url)
+        if not video_id:
+            return {"title": "Invalid URL", "duration": "PT0S", "transcript": ""}
+
     videos = client.videos.list(video_id=video_id)
     if videos is None or not videos.items:
         return {"title": "Title not available", "duration": "Duration not available", "transcript": ""}
@@ -307,26 +314,36 @@ def get_video_description(video_id: str) -> str:
     return out
 
 
-def get_video_id(text: str) -> str:
-    try:
-        request = do_search(text)
-    except requests.RequestException as e:
-        raise APIError("Unable to connect to API") from e
+def get_video_id(url: str) -> str | None:
+    # Parse the URL
+    parsed_url = urlparse(url)
 
-    raise_api_errors(request)
-    json = request.json()
+    # Handle different cases based on the path and query
+    if parsed_url.netloc in ("www.youtube.com", "youtube.com"):
+        # Check for 'v' or 'watch' paths and retrieve the video ID from the query
+        if "v" in parse_qs(parsed_url.query):
+            return parse_qs(parsed_url.query)["v"][0]
+        elif parsed_url.path.startswith("/embed/"):
+            return parsed_url.path.split("/embed/")[1]
+        elif parsed_url.path.startswith("/v/"):
+            return parsed_url.path.split("/v/")[1]
+        elif parsed_url.path.startswith("/watch/"):
+            return parse_qs(parsed_url.query)["v"][0]
+        # Additional handling for other paths like /shorts/
+        elif parsed_url.path.startswith("/shorts/"):
+            return parsed_url.path.split("/shorts/")[1]
 
-    if not json.get("items"):
-        raise NoResultsError()
+    elif parsed_url.netloc == "youtu.be":
+        # For shortened URLs
+        return parsed_url.path.lstrip("/")
 
-    video_id = json["items"][0]["id"]["videoId"]  # type: str
-    return video_id
+    return None  # Return None if no match is found
 
 
 @hook.regex(youtube_re)
 def youtube_url(match: Match[str]) -> str:
     client = get_client()
-    result = get_video_info(client, match.group(1))
+    result = get_video_info(client, video_id=match.group(1))
     time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"\x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
@@ -342,7 +359,7 @@ def youtube_next(text: str, nick: str, reply) -> str:
     global user_results
     client = get_client()
     url = user_results[nick].pop(0)
-    result = get_video_info(client, url)
+    result = get_video_info(client, video_url=url)
     time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"{url}  -  \x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
@@ -365,10 +382,12 @@ def youtube(text: str, nick: str, reply) -> str:
 
 @hook.command("youtime", "ytime")
 def youtime(text: str, reply) -> str:
-    """<query> - Gets the total run time of the first YouTube search result for <query>."""
+    """<url> - Gets the total run time of the first YouTube."""
     parts = ["statistics", "contentDetails", "snippet"]
     try:
         video_id = get_video_id(text)
+        if not video_id:
+            return "Invalid YouTube URL"
         request = get_video(video_id, parts)
         raise_api_errors(request)
     except NoResultsError as e:
