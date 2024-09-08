@@ -189,8 +189,8 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
     response = attempt_inference(client, article_text, ALIASES["summarize"].id, reply)
     if isinstance(response, str):
         return formatting.truncate(response, 420)
-    summary: str = response.json()[0]["summary_text"]
-    truncated: str = formatting.truncate_str(summary, 350)
+    summary: str = "\n".join([part["summary_text"] for part in response.json()])
+    truncated: str = formatting.truncate_str(summary, 350).replace("\n", "")
 
     if len(truncated) < len(summary):
         paste_url = upload_responses(summary)
