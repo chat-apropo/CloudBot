@@ -1,19 +1,25 @@
+import io
 import tempfile
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import feedparser
 import requests
 import validators
+from pypdf import PdfReader
 
 from cloudbot import hook
 from cloudbot.util import formatting
-from cloudbot.util.http import parse_soup, ua_firefox
+from cloudbot.util.http import ua_firefox
 from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://export.arxiv.org/api/query"
-HTML_VIEW_URL = "https://arxiv.org/html/"
 MAX_RESULTS = 3
+PDF_VIEW_URL = "https://arxiv.org/pdf/"
+PDF_REQUEST_TIMEOUT = 10  # seconds
+PDF_MAX_CONTENT_LENGTH = 100000  # characters
+MAX_PDF_SIZE = 1024 * 1024 * 10  # 10MB
 
 
 def upload_responses(text_contents: str) -> str:
@@ -145,12 +151,7 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
     if not api_key:
         return "error: missing api key for huggingface"
 
-    from plugins.huggingface import (
-        ALIASES,
-        HuggingFaceClient,
-        attempt_inference,
-        process_response,
-    )
+    from plugins.gpt import summarize
 
     article = text.strip()
 
@@ -169,30 +170,46 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
         return "Invalid URL: " + article_url
 
     article_id = article_url.split("/")[-1]
-    article_html_url = f"{HTML_VIEW_URL}{article_id}"
+    article_pdf_url = f"{PDF_VIEW_URL}{article_id}"
 
-    response = requests.get(article_html_url, headers={"User-Agent": ua_firefox})
-    if response.status_code != 200:
-        return "Error fetching article"
+    try:
+        response = requests.get(
+            article_pdf_url,
+            headers={"User-Agent": ua_firefox},
+            timeout=PDF_REQUEST_TIMEOUT,
+            stream=True,
+        )
+        if response.status_code != 200:
+            return "Error fetching article"
+        if int(response.headers.get("Content-Length", 0)) > MAX_PDF_SIZE:
+            return "Article is too large to process"
+        size = 0
+        start = time.time()
 
-    soup = parse_soup(response.text)
-    # Get tag article with class "ltx_document"
-    article_body = soup.find("article", class_="ltx_document")
-    if not article_body:
-        return "Cannot find article body"
+        body_bytes = io.BytesIO()
+        for chunk in response.iter_content(1024):
+            if time.time() - start > PDF_REQUEST_TIMEOUT:
+                return "Timeout fetching article"
+
+            size += len(chunk)
+            if size > MAX_PDF_SIZE:
+                return "Article is too large to process"
+            body_bytes.write(chunk)
+
+        article_text = ""
+        body_bytes.seek(0)
+        pdf = PdfReader(body_bytes)
+        for page in pdf.pages:
+            text = page.extract_text()
+            article_text += text
+            if len(article_text) > PDF_MAX_CONTENT_LENGTH:
+                break
+            break
+        body_bytes.close()
+
+    except requests.exceptions.RequestException as e:
+        return f"Timeout fetching article: {e}"
 
     # Get all as text but clamp at 10000 characters
-    article_text = article_body.get_text()
-    article_text = formatting.truncate(article_text, 10000)
-
-    client = HuggingFaceClient([api_key])
-    response = attempt_inference(client, article_text, ALIASES["summarize"].id, reply)
-    if isinstance(response, str):
-        return formatting.truncate(response, 420)
-    summary: str = "\n".join([part["summary_text"] for part in response.json()])
-    truncated: str = formatting.truncate_str(summary, 350).replace("\n", "")
-
-    if len(truncated) < len(summary):
-        paste_url = upload_responses(summary)
-        return f"{truncated} (full response: {paste_url})"
-    return truncated
+    article_text = formatting.truncate(article_text, PDF_MAX_CONTENT_LENGTH)
+    return summarize([article_text], text.strip() == "image", nick, chan, bot, reply, "article")

@@ -10,6 +10,7 @@ from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
+MAX_SUMMARIZE_MESSAGES = 1000
 
 
 @dataclass
@@ -40,7 +41,7 @@ def get_completion(messages: List[Message]) -> str:
 
 
 def upload_responses(nick: str, messages: List[Message]) -> str:
-    header = f"{nick} conversation".upper()
+    header = f"{nick} REQUESTED SUMMARY"
     bar = "-" * 80
     lb = "\n"
     text_contents = (
@@ -91,39 +92,21 @@ def gpt_clear_command(nick: str, chan: str) -> str:
     return "No conversation cache to clear."
 
 
-@hook.command("summarize", "axs", autohelp=False)
-def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
-    """Summarizes the contents of the last chat messages"""
-    api_key = bot.config.get_api_key("huggingface")
-    if not api_key:
-        return "error: missing api key for huggingface"
-
-    MAX_MESSAGES = 1000
-    if text.strip().lower() == "image":
-        messages = [
-            "Please convert the following conversation into an image prompt for a text generating model with only the main keywords separated by comma: \n```"
-        ]
-        image = True
+def summarize(
+    messages: List[str],
+    image: bool,
+    nick: str,
+    chan: str,
+    bot,
+    reply,
+    what: str = "conversation",
+) -> str | List[str] | None:
+    if image:
+        question_header = f"Please convert the following {what} into an image prompt for a text generating model with only the main keywords separated by comma: \n```"
     else:
-        image = False
-        messages = ["Please summarize the following conversation: \n```"]
-    inner = []
-    i = 0
-    for nick, _timestamp, msg in reversed(conn.history[chan]):
-        if msg.startswith("\x01ACTION"):
-            mod_msg = msg[7:].strip(" \x01")
-            fmt = "* {}: {}"
-        else:
-            mod_msg = msg
-            fmt = "<{}>: {}"
-        inner.append(fmt.format(nick, mod_msg))
-        i += 1
-        if i >= MAX_MESSAGES:
-            break
+        question_header = f"Please summarize the following {what}: \n```"
 
-    messages.extend(reversed(inner))
-    summarize_body = "\n".join(messages)
-    summarize_body += "```"
+    summarize_body = question_header + "\n".join(messages) + "\n```"
 
     response = get_completion([Message(role="user", content=summarize_body)])
 
@@ -135,6 +118,10 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
             process_response,
         )
 
+        api_key = bot.config.get_api_key("huggingface")
+        if not api_key:
+            return "error: missing api key for huggingface"
+
         client = HuggingFaceClient([api_key])
         response = attempt_inference(client, summarize_body, ALIASES["image"].id, reply)
         if isinstance(response, str):
@@ -142,5 +129,34 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
         return formatting.truncate(process_response(response, chan, nick), 420)
     else:
         # Output at most 3 messages
-        output = formatting.chunk_str(response.replace("\n", " - "))[0:3]
+        output = formatting.chunk_str(response.replace("\n", " - "))
+        if len(output) > 3:
+            paste_url = upload_responses(nick, [Message(role="assistant", content=response)])
+            output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
+            return output[:3]
         return output
+
+
+@hook.command("summarize", autohelp=False)
+def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
+    """Summarizes the contents of the last chat messages"""
+    image = False
+    if text.strip().lower() == "image":
+        image = True
+
+    inner = []
+    i = 0
+    for nick, _timestamp, msg in reversed(conn.history[chan]):
+        if msg.startswith("\x01ACTION"):
+            mod_msg = msg[7:].strip(" \x01")
+            fmt = "* {}: {}"
+        else:
+            mod_msg = msg
+            fmt = "<{}>: {}"
+        inner.append(fmt.format(nick, mod_msg))
+        i += 1
+        if i >= MAX_SUMMARIZE_MESSAGES:
+            break
+
+    messages = list(reversed(inner))
+    return summarize(messages, image, nick, chan, bot, reply)
