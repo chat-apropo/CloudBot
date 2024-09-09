@@ -137,7 +137,7 @@ def summarize(
         return output
 
 
-@hook.command("summarize", autohelp=False)
+@hook.command("summarize", "summary", autohelp=False)
 def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
     """Summarizes the contents of the last chat messages"""
     image = False

@@ -143,7 +143,7 @@ def arxiv_next(text: str, nick: str):
     return format_response(page.start, results)
 
 
-@hook.command("axsummarize", "axs", autohelp=False)
+@hook.command("axsummarize", "axsummary", "axs", autohelp=False)
 def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
     """Summarizes the contents of the article"""
     global displayed_results
