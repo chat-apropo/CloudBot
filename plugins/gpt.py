@@ -40,8 +40,7 @@ def get_completion(messages: List[Message]) -> str:
     return response.json()["completion"]
 
 
-def upload_responses(nick: str, messages: List[Message]) -> str:
-    header = f"{nick} REQUESTED SUMMARY"
+def upload_responses(nick: str, messages: List[Message], header: str) -> str:
     bar = "-" * 80
     lb = "\n"
     text_contents = (
@@ -75,7 +74,7 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
     gpt_messages_cache[channick].append(Message(role="assistant", content=response))
     truncated = formatting.truncate_str(response, 350)
     if len(truncated) < len(response):
-        paste_url = upload_responses(nick, list(gpt_messages_cache[channick]))
+        paste_url = upload_responses(nick, list(gpt_messages_cache[channick]), f"{nick}'s GPT conversation in {chan}")
         return f"{truncated} (full response: {paste_url})"
     return truncated
 
@@ -131,7 +130,9 @@ def summarize(
         # Output at most 3 messages
         output = formatting.chunk_str(response.replace("\n", " - "))
         if len(output) > 3:
-            paste_url = upload_responses(nick, [Message(role="assistant", content=response)])
+            paste_url = upload_responses(
+                nick, [Message(role="assistant", content=response)], f"{nick}'s GPT summary in {chan}"
+            )
             output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
             return output[:3]
         return output
@@ -146,14 +147,14 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
 
     inner = []
     i = 0
-    for nick, _timestamp, msg in reversed(conn.history[chan]):
+    for name, _timestamp, msg in reversed(conn.history[chan]):
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
             fmt = "* {}: {}"
         else:
             mod_msg = msg
             fmt = "<{}>: {}"
-        inner.append(fmt.format(nick, mod_msg))
+        inner.append(fmt.format(name, mod_msg))
         i += 1
         if i >= MAX_SUMMARIZE_MESSAGES:
             break
