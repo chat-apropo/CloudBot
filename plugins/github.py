@@ -239,7 +239,6 @@ def gh_cmd(text, event, reply, bot, nick, chan):
             user_results[chan] = {}
 
         user_results[chan][nick] = results
-        for part in ghn_cmd(chan, nick):
-            reply(part)
+        return ghn_cmd(chan, nick)
     except GithubException as e:
         return f"Error: {e}"
