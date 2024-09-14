@@ -15,7 +15,7 @@ from sqlalchemy import (
 
 from cloudbot import hook
 from cloudbot.event import EventType
-from cloudbot.util import database, timeformat
+from cloudbot.util import database, formatting, timeformat
 
 seen_table = Table(
     "seen_user",
@@ -29,7 +29,7 @@ seen_table = Table(
 )
 
 
-RE_URL = ".*\\b(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)\\b.*"
+RE_URL = "\\b(?:https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)\\b"
 
 
 def track_seen(event, db):
@@ -173,8 +173,9 @@ def userlinks(text, chan, conn):
 
     i = 0
     max_i = 50000
+    text = text.strip()
 
-    links = []
+    links = set()
     for nick, message_time, message in history:
         if i > max_i:
             break
@@ -183,11 +184,15 @@ def userlinks(text, chan, conn):
             match = re.match(RE_URL, message)
             if match:
                 urls = re.findall(RE_URL, message)
-                links.extend(urls)
+                links.update(urls)
+        if len(links) > 10:
+            break
 
+    if not links:
+        return "No links found" if not text else f"No links found for nick: {text}"
     if text:
-        return ["All links posted by " + text] + [f"{i+1}: {link}" for i, link in enumerate(links)][-5:]
-    return [f"{i+1}: {link}" for i, link in enumerate(links)]
+        return f"All links posted by {text}: " + formatting.truncate(" - ".join(links), 400)
+    return formatting.truncate(" - ".join(links), 400)
 
 
 @hook.command("said", autohelp=False)
