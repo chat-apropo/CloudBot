@@ -26,6 +26,7 @@ table = Table(
     Column("chan", String),
     Column("host", String),
     PrimaryKeyConstraint("name", "chan"),
+    extend_existing=True,
 )
 
 
