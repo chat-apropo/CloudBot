@@ -3,22 +3,14 @@ import random
 import time
 from typing import Any, Dict
 
-from sqlalchemy import Float, String, and_, column, select, table
+from sqlalchemy import and_, select
 
 from cloudbot import hook
 from cloudbot.util.database import metadata
 from cloudbot.util.textgen import TextGenerator
+from plugins.history import seen_table
 
 hookups: Dict[str, Any] = {}
-
-seen_table = table(
-    "seen_user",
-    column("name", String),
-    column("time", Float),
-    column("quote", String),
-    column("chan", String),
-    column("host", String),
-)
 
 
 @hook.on_start()
@@ -54,8 +46,6 @@ def hookup(db, chan):
         "user2": person2,
     }
 
-    generator = TextGenerator(
-        hookups["templates"], hookups["parts"], variables=variables
-    )
+    generator = TextGenerator(hookups["templates"], hookups["parts"], variables=variables)
 
     return generator.generate_string()

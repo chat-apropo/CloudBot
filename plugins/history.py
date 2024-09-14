@@ -17,7 +17,7 @@ from cloudbot import hook
 from cloudbot.event import EventType
 from cloudbot.util import database, timeformat
 
-table = Table(
+seen_table = Table(
     "seen_user",
     database.metadata,
     Column("name", String),
@@ -36,18 +36,16 @@ def track_seen(event, db):
     """
     # keep private messages private
     now = time.time()
-    if event.chan[:1] == "#" and not re.findall(
-        "^s/.*/.*/$", event.content.lower()
-    ):
+    if event.chan[:1] == "#" and not re.findall("^s/.*/.*/$", event.content.lower()):
         res = db.execute(
-            table.update()
+            seen_table.update()
             .values(time=now, quote=event.content, host=str(event.mask))
-            .where(table.c.name == event.nick.lower())
-            .where(table.c.chan == event.chan)
+            .where(seen_table.c.name == event.nick.lower())
+            .where(seen_table.c.chan == event.chan)
         )
         if res.rowcount == 0:
             db.execute(
-                table.insert().values(
+                seen_table.insert().values(
                     name=event.nick.lower(),
                     time=now,
                     quote=event.content,
@@ -123,9 +121,9 @@ def seen(text, nick, chan, db, event, is_nick_valid):
         return "I can't look up that name, its impossible to use!"
 
     last_seen = db.execute(
-        select([table.c.name, table.c.time, table.c.quote])
-        .where(table.c.name == text.lower())
-        .where(table.c.chan == chan)
+        select([seen_table.c.name, seen_table.c.time, seen_table.c.quote])
+        .where(seen_table.c.name == text.lower())
+        .where(seen_table.c.chan == chan)
     ).fetchone()
 
     if last_seen:
@@ -158,9 +156,7 @@ def lastlink(text, chan, conn):
         if nick == text or not text:
             match = re.match(pattern, message)
             if match:
-                date = datetime.fromtimestamp(message_time).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                date = datetime.fromtimestamp(message_time).strftime("%Y-%m-%d %H:%M:%S")
                 return f"{date} {nick}: {message}"
 
     return "No links found" if not text else f"No links found for nick: {text}"
@@ -191,12 +187,8 @@ def searchword(text, chan, conn):
         i += 1
         if nick == search_nick or not text or search_nick == "*":
             if text in message:
-                date = datetime.fromtimestamp(message_time).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-                message = message.replace("\x01ACTION ", "* ").replace(
-                    "\x01", ""
-                )
+                date = datetime.fromtimestamp(message_time).strftime("%Y-%m-%d %H:%M:%S")
+                message = message.replace("\x01ACTION ", "* ").replace("\x01", "")
                 message = message.replace(text, f"\x02{text}\x02")
                 return f"{date} {nick}: {message}"
 
