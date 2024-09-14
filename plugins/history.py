@@ -29,6 +29,9 @@ seen_table = Table(
 )
 
 
+RE_URL = ".*\\b(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)\\b.*"
+
+
 def track_seen(event, db):
     """Tracks messages for the .seen command
     :type event: cloudbot.event.Event
@@ -144,8 +147,6 @@ def lastlink(text, chan, conn):
     except KeyError:
         return "There is no history for this channel."
 
-    pattern = ".*\\b(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)\\b.*"
-
     i = 0
     max_i = 50000
 
@@ -154,12 +155,39 @@ def lastlink(text, chan, conn):
             break
         i += 1
         if nick == text or not text:
-            match = re.match(pattern, message)
+            match = re.match(RE_URL, message)
             if match:
                 date = datetime.fromtimestamp(message_time).strftime("%Y-%m-%d %H:%M:%S")
                 return f"{date} {nick}: {message}"
 
     return "No links found" if not text else f"No links found for nick: {text}"
+
+
+@hook.command("userlinks", "urls", autohelp=False)
+def userlinks(text, chan, conn):
+    """[<nick>] - gets all links posted by a user or in the channel if no argument is supplied"""
+    try:
+        history = reversed(conn.history[chan])
+    except KeyError:
+        return "There is no history for this channel."
+
+    i = 0
+    max_i = 50000
+
+    links = []
+    for nick, message_time, message in history:
+        if i > max_i:
+            break
+        i += 1
+        if nick == text or not text:
+            match = re.match(RE_URL, message)
+            if match:
+                urls = re.findall(RE_URL, message)
+                links.extend(urls)
+
+    if text:
+        return ["All links posted by " + text] + [f"{i+1}: {link}" for i, link in enumerate(links)][-5:]
+    return [f"{i+1}: {link}" for i, link in enumerate(links)]
 
 
 @hook.command("said", autohelp=False)
