@@ -161,3 +161,35 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
 
     messages = list(reversed(inner))
     return summarize(messages, image, nick, chan, bot, reply)
+
+
+@hook.command("agi", "sentient", autohelp=False)
+def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
+    """<text> - Get a response from text generating LLM that is aware of the conversation."""
+    # Same logic as .summarize but with the last 30 messages and the user's message
+    inner = []
+    i = 0
+    for name, _timestamp, msg in reversed(conn.history[chan]):
+        if msg.startswith("\x01ACTION"):
+            mod_msg = msg[7:].strip(" \x01")
+            fmt = "* {}: {}"
+        else:
+            mod_msg = msg
+            fmt = "<{}>: {}"
+        inner.append(fmt.format(name, mod_msg))
+        i += 1
+        if i >= 30:
+            break
+
+    messages = list(reversed(inner))
+    response = get_completion(
+        [Message(role="user", content=msg) for msg in messages] + [Message(role="user", content=f"{nick}: {text}")]
+    )
+
+    # Output at most 3 messages
+    output = formatting.chunk_str(response.replace("\n", " - "))
+    if len(output) > 3:
+        paste_url = upload_responses(nick, [Message(role="assistant", content=response)], f"GPT conversation in {chan}")
+        output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
+        return output[:3]
+    return output
