@@ -182,6 +182,8 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
         if i >= 30:
             break
 
+    print(conn.history[chan])
+
     messages = list(reversed(inner))
     lb = "\n"
     body = f"""
