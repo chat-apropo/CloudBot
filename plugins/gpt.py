@@ -163,6 +163,7 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
     return summarize(messages, image, nick, chan, bot, reply)
 
 
+agi_messages_cache = {}
 @hook.command("agi", "sentient", autohelp=False)
 def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
@@ -182,9 +183,17 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
             break
 
     messages = list(reversed(inner))
-    response = get_completion(
-        [Message(role="user", content=msg) for msg in messages] + [Message(role="user", content=f"{nick}: {text}")]
-    )
+    lb = "\n"
+    body = f"""
+    Given the following conversation:
+    ```
+    {lb.join(messages)}
+    ```
+
+    Briefly and casually answer the following:
+    {text}
+    """
+    response = get_completion([Message(role="user", content=body)])
 
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
