@@ -201,7 +201,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     output = formatting.chunk_str(response.replace("\n", " - "))
     reversed_output = reversed(output)
     for message in reversed_output:
-        conn.history[chan].insert(0, message)
+        conn.history[chan].insert(0, ('agi', 0, message))
     if len(output) > 3:
         paste_url = upload_responses(nick, [Message(role="assistant", content=response)], f"GPT conversation in {chan}")
         output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
