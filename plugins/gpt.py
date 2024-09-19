@@ -185,12 +185,12 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     messages = list(reversed(inner))
     lb = "\n"
     body = f"""
-    Given the following conversation:
+    Given the following IRC conversation:
     ```
     {lb.join(messages)}
     ```
 
-    Briefly and casually answer the following:
+    Briefly and casually answer the following, as a participant of said conversation:
     {text}
     """
     response = get_completion([Message(role="user", content=body)])
