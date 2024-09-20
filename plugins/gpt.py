@@ -177,7 +177,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     history = list(itertools.islice(conn.history[chan], 30, None))
     for message in agi_messages_cache:
         history.append(message)
-    messages = sorted(history, key=lambda message: message[1])[:30]
+    messages = sorted(history, key=lambda message: message[1])
     print(messages)
 
     inner = []
