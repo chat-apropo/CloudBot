@@ -181,7 +181,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
 
     inner = []
 
-    for name, _timestamp, msg in reversed(history):
+    for name, _timestamp, msg in messages:
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
             fmt = "* {}: {}"
