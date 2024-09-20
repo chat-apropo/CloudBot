@@ -200,7 +200,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     {lb.join(messages)}
     ```
 
-    Briefly and casually answer the following, as a participant of said conversation:
+    Briefly and casually answer the following, as a participant of said conversation that has been on it for a while, nicknamed agi:
     {text}
     """
     response = get_completion([Message(role="user", content=body)])
