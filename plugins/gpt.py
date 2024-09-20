@@ -2,6 +2,7 @@ import tempfile
 from collections import deque
 from dataclasses import dataclass
 from typing import List, Literal
+import itertools
 
 from datetime import datetime
 import time
@@ -173,7 +174,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     # Same logic as .summarize but with the last 30 messages and the user's message
     global agi_messages_cache
 
-    history = conn.history[chan][:30]
+    history = list(itertools.islice(conn.history[chan], 30, None))
     for message in agi_messages_cache:
         history.append(message)
     messages = sorted(history, key=lambda message: message[1])[:30]
