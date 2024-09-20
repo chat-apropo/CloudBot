@@ -171,27 +171,27 @@ agi_messages_cache = []
 def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
     # Same logic as .summarize but with the last 30 messages and the user's message
+    global agi_messages_cache
+
+    history = conn.history[chan][:30]
+    for message in agi_messages_cache:
+        history.append(message)
+    messages = sorted(history, key=lambda message: message[1])[:30]
+
     inner = []
-    i = 0
-    for name, _timestamp, msg in reversed(conn.history[chan]):
+
+    for name, _timestamp, msg in reversed(history):
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
             fmt = "* {}: {}"
         else:
             mod_msg = msg
             fmt = "<{}>: {}"
-        inner.append(fmt.format(name, _timestamp, mod_msg))
-        i += 1
-        if i >= 30:
-            break
+        inner.append(fmt.format(name, mod_msg))
 
     print(conn.history[chan])
 
     messages = list(reversed(inner))
-    global agi_messages_cache
-    for message in agi_messages_cache:
-        messages.append(message)
-    messages = sorted(messages, key=lambda message: message[1])[:30]
 
     print(messages)
 
