@@ -206,7 +206,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
     for message in output:
-        agi_messages_cache.append(('agi', (datetime.utcnow() - datetime(1970, 1, 1)).total_seconds(), message))
+        agi_messages_cache.append(('agi', datetime.timestamp(), message))
     if len(output) > 3:
         paste_url = upload_responses(nick, [Message(role="assistant", content=response)], f"GPT conversation in {chan}")
         output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
