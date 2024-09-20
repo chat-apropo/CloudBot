@@ -174,10 +174,10 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     # Same logic as .summarize but with the last 30 messages and the user's message
     global agi_messages_cache
 
-    history = list(itertools.islice(conn.history[chan], 30, None))
+    history = list(conn.history[chan](itertools.islice(my_deque, 30, None)))
     for message in agi_messages_cache:
         history.append(message)
-    messages = sorted(history, key=lambda message: message[1])
+    messages = sorted(history, key=lambda message: message[1])[:30]
     print(messages)
 
     inner = []
