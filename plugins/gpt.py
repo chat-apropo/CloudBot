@@ -180,7 +180,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
         else:
             mod_msg = msg
             fmt = "<{}>: {}"
-        inner.append(fmt.format(name, mod_msg))
+        inner.append(fmt.format(name, _timestamp, mod_msg))
         i += 1
         if i >= 30:
             break
