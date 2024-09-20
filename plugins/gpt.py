@@ -3,6 +3,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import List, Literal
 
+from datetime import datetime
 import requests
 
 from cloudbot import hook
@@ -163,7 +164,7 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
     return summarize(messages, image, nick, chan, bot, reply)
 
 
-agi_messages_cache = {}
+agi_messages_cache = []
 @hook.command("agi", "sentient", autohelp=False)
 def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
@@ -185,6 +186,11 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     print(conn.history[chan])
 
     messages = list(reversed(inner))
+    global agi_messages_cache
+    for message in agi_messages_cache:
+        messages.append(message)
+    messages = sorted(messages, key=lambda message: message[1])[:30]
+
     lb = "\n"
     body = f"""
     Given the following IRC conversation:
@@ -200,7 +206,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
     for message in output:
-        conn.history[chan].append(('agi', 0, message))
+        agi_messages_cache.append(('agi', (datetime.utcnow() - datetime(1970, 1, 1)).total_seconds(), message))
     if len(output) > 3:
         paste_url = upload_responses(nick, [Message(role="assistant", content=response)], f"GPT conversation in {chan}")
         output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
