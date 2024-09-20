@@ -193,6 +193,8 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
         messages.append(message)
     messages = sorted(messages, key=lambda message: message[1])[:30]
 
+    print(messages)
+
     lb = "\n"
     body = f"""
     Given the following IRC conversation:
