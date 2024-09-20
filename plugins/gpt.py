@@ -190,11 +190,7 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
             fmt = "<{}>: {}"
         inner.append(fmt.format(name, mod_msg))
 
-    print(conn.history[chan])
-
     messages = list(reversed(inner))
-
-    print(messages)
 
     lb = "\n"
     body = f"""
