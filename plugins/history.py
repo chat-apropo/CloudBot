@@ -60,53 +60,6 @@ def track_seen(event, db):
         db.commit()
 
 
-def track_history(event, message_time, conn):
-    """
-    :type event: cloudbot.event.Event
-    :type conn: cloudbot.client.Client
-    """
-    try:
-        history = conn.history[event.chan]
-    except KeyError:
-        conn.history[event.chan] = deque(maxlen=100)
-        # what are we doing here really
-        # really really
-        history = conn.history[event.chan]
-
-    data = (event.nick, message_time, event.content)
-    history.append(data)
-
-
-@hook.event([EventType.message, EventType.action], singlethread=True)
-def chat_tracker(event, db, conn):
-    """
-    :type db: sqlalchemy.orm.Session
-    :type event: cloudbot.event.Event
-    :type conn: cloudbot.client.Client
-    """
-    if event.type is EventType.action:
-        event.content = f"\x01ACTION {event.content}\x01"
-
-    message_time = time.time()
-    track_seen(event, db)
-    track_history(event, message_time, conn)
-
-
-@hook.command(autohelp=False)
-@asyncio.coroutine
-def resethistory(event, conn):
-    """- resets chat history for the current channel
-    :type event: cloudbot.event.Event
-    :type conn: cloudbot.client.Client
-    """
-    try:
-        conn.history[event.chan].clear()
-        return "Reset chat history for current channel."
-    except KeyError:
-        # wat
-        return "There is no history for this channel."
-
-
 @hook.command()
 def seen(text, nick, chan, db, event, is_nick_valid):
     """<nick> <channel> - tells when a nickname was last in active in one of my channels

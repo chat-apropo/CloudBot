@@ -50,8 +50,7 @@ def upload_responses(nick: str, messages: List[Message], header: str) -> str:
         header
         + "\n" * 4
         + f"{lb}{bar}{lb*2}".join(
-            f"{nick if message.role == 'user' else 'bot'}: {message.content}"
-            for message in messages
+            f"{nick if message.role == 'user' else 'bot'}: {message.content}" for message in messages
         )
     )
     with tempfile.NamedTemporaryFile(suffix=".txt") as f:
@@ -75,9 +74,7 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
     response = get_completion(list(gpt_messages_cache[channick]))
-    gpt_messages_cache[channick].append(
-        Message(role="assistant", content=response)
-    )
+    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
     truncated = formatting.truncate_str(response, 350)
     if len(truncated) < len(response):
         paste_url = upload_responses(
@@ -132,9 +129,7 @@ def summarize(
             return "error: missing api key for huggingface"
 
         client = HuggingFaceClient([api_key])
-        response = attempt_inference(
-            client, summarize_body, ALIASES["image"].id, reply
-        )
+        response = attempt_inference(client, summarize_body, ALIASES["image"].id, reply)
         if isinstance(response, str):
             return formatting.truncate(response, 420)
         return formatting.truncate(process_response(response, chan, nick), 420)
@@ -147,20 +142,13 @@ def summarize(
                 [Message(role="assistant", content=response)],
                 f"{nick}'s GPT summary in {chan}",
             )
-            output[2] = (
-                formatting.truncate(output[2], 350)
-                + " (full response: "
-                + paste_url
-                + ")"
-            )
+            output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
             return output[:3]
         return output
 
 
 @hook.command("summarize", "summary", autohelp=False)
-def summarize_command(
-    bot, reply, text: str, chan: str, nick: str, conn
-) -> str | List[str] | None:
+def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
     """Summarizes the contents of the last chat messages"""
     image = False
     if text.strip().lower() == "image":
@@ -211,9 +199,7 @@ def generate_agi_history(conn, chan: str) -> list[str]:
 
 
 @hook.command("agi", "sentient", autohelp=False)
-def gpts_command(
-    reply, text: str, nick: str, chan: str, conn
-) -> str | List[str] | None:
+def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
     # Same logic as .summarize but with the last 30 messages and the user's message
     messages = generate_agi_history(conn, chan)
@@ -232,21 +218,14 @@ def gpts_command(
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
     for message in output:
-        agi_messages_cache.append(
-            ("agi", datetime.timestamp(datetime.now()), message)
-        )
+        agi_messages_cache.append(("agi", datetime.timestamp(datetime.now()), message))
     if len(output) > 3:
         paste_url = upload_responses(
             nick,
             [Message(role="assistant", content=response)],
             f"GPT conversation in {chan}",
         )
-        output[2] = (
-            formatting.truncate(output[2], 350)
-            + " (full response: "
-            + paste_url
-            + ")"
-        )
+        output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
         return output[:3]
     return output
 
@@ -256,6 +235,4 @@ def agi_paste_command(nick: str, conn, chan: str) -> str:
     """Pastes the AGI conversation cache to girafiles."""
     messages = generate_agi_history(conn, chan)
     history = [Message(role="user", content=message) for message in messages]
-    return upload_responses(
-        nick, history, f"{nick}'s AGI conversation in {chan}"
-    )
+    return upload_responses("", history, f"AGI conversation in {chan}")
