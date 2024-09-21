@@ -1,10 +1,9 @@
-import itertools
+import copy
 import tempfile
-import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Literal
+from typing import Deque, List, Literal
 
 import requests
 
@@ -14,11 +13,13 @@ from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
 MAX_SUMMARIZE_MESSAGES = 1000
+AGI_HISTORY_LENGTH = 50
+RoleType = Literal["user", "assistant"]
 
 
 @dataclass
 class Message:
-    role: Literal["user", "assistant"]
+    role: RoleType
     content: str
 
     def as_dict(self):
@@ -162,7 +163,7 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
             fmt = "* {}: {}"
         else:
             mod_msg = msg
-            fmt = "<{}>: {}"
+            fmt = "{}: {}"
         inner.append(fmt.format(name, mod_msg))
         i += 1
         if i >= MAX_SUMMARIZE_MESSAGES:
@@ -172,30 +173,56 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
     return summarize(messages, image, nick, chan, bot, reply)
 
 
-agi_messages_cache = []
+agi_messages_cache: Deque[tuple[float, str]] = deque(maxlen=AGI_HISTORY_LENGTH)
 
 
-def generate_agi_history(conn, chan: str) -> list[str]:
+def generate_agi_history(conn, chan: str) -> list[Message]:
     global agi_messages_cache
 
-    history = list(itertools.islice(conn.history[chan], 30))
-    for message in agi_messages_cache:
-        history.append(message)
-    messages = sorted(history, key=lambda message: message[1])[:30]
-
-    inner = []
-
-    for name, _timestamp, msg in messages:
+    inner: list[tuple[RoleType, float, str]] = []
+    i = 0
+    for name, timestamp, msg in reversed(conn.history[chan]):
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
             fmt = "* {}: {}"
         else:
             mod_msg = msg
-            fmt = "<{}>: {}"
-        inner.append(fmt.format(name, mod_msg))
+            fmt = "{}: {}"
+        inner.append(("user", timestamp, fmt.format(name, mod_msg)))
+        i += 1
+        if i >= AGI_HISTORY_LENGTH:
+            break
 
-    messages = list(reversed(inner))
-    return messages
+    inner.extend(("assistant", timestamp, msg) for timestamp, msg in agi_messages_cache)
+    sorted_messages = sorted(inner, key=lambda x: x[1])
+    messages = copy.deepcopy(sorted_messages)
+
+    # We remove the bot's message from the begining of the history so that it doesn't think it started the conversation
+    # on it's own
+    for msg in sorted_messages:
+        role = msg[0]
+        if role == "assistant":
+            messages = messages[1:]
+            agi_messages_cache.popleft()
+        else:
+            break
+
+    messages.insert(
+        0,
+        (
+            "user",
+            -1,
+            "You are watching a conversation between multiple users in a chatroom and they can interact with you through the .agi command.",
+        ),
+    )
+    messages.append(
+        (
+            "user",
+            10e30,
+            "Respond to the last user in a brief and casual manner.",
+        ),
+    )
+    return [Message(role=role, content=text) for role, _, text in messages]
 
 
 @hook.command("agi", "sentient", autohelp=False)
@@ -203,22 +230,12 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
     # Same logic as .summarize but with the last 30 messages and the user's message
     messages = generate_agi_history(conn, chan)
-    lb = "\n"
-    body = f"""
-    Given the following IRC conversation:
-    ```
-    {lb.join(messages)}
-    ```
-
-    Briefly and casually answer the following, as a participant of said conversation that has been on it for a while, nicknamed agi:
-    {text}
-    """
-    response = get_completion([Message(role="user", content=body)])
+    response = get_completion(messages)
 
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
     for message in output:
-        agi_messages_cache.append(("agi", datetime.timestamp(datetime.now()), message))
+        agi_messages_cache.append((datetime.timestamp(datetime.now()), message))
     if len(output) > 3:
         paste_url = upload_responses(
             nick,
@@ -232,7 +249,6 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
 
 @hook.command("agipaste", autohelp=False)
 def agi_paste_command(nick: str, conn, chan: str) -> str:
-    """Pastes the AGI conversation cache to girafiles."""
+    """Pastes the AGI context window."""
     messages = generate_agi_history(conn, chan)
-    history = [Message(role="user", content=message) for message in messages]
-    return upload_responses("", history, f"AGI conversation in {chan}")
+    return upload_responses("", messages, f"AGI conversation in {chan}")
