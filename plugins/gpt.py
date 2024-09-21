@@ -1,11 +1,10 @@
+import itertools
 import tempfile
+import time
 from collections import deque
 from dataclasses import dataclass
-from typing import List, Literal
-import itertools
-
 from datetime import datetime
-import time
+from typing import List, Literal
 
 import requests
 
@@ -51,7 +50,8 @@ def upload_responses(nick: str, messages: List[Message], header: str) -> str:
         header
         + "\n" * 4
         + f"{lb}{bar}{lb*2}".join(
-            f"{nick if message.role == 'user' else 'bot'}: {message.content}" for message in messages
+            f"{nick if message.role == 'user' else 'bot'}: {message.content}"
+            for message in messages
         )
     )
     with tempfile.NamedTemporaryFile(suffix=".txt") as f:
@@ -75,10 +75,16 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
     response = get_completion(list(gpt_messages_cache[channick]))
-    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
+    gpt_messages_cache[channick].append(
+        Message(role="assistant", content=response)
+    )
     truncated = formatting.truncate_str(response, 350)
     if len(truncated) < len(response):
-        paste_url = upload_responses(nick, list(gpt_messages_cache[channick]), f"{nick}'s GPT conversation in {chan}")
+        paste_url = upload_responses(
+            nick,
+            list(gpt_messages_cache[channick]),
+            f"{nick}'s GPT conversation in {chan}",
+        )
         return f"{truncated} (full response: {paste_url})"
     return truncated
 
@@ -126,7 +132,9 @@ def summarize(
             return "error: missing api key for huggingface"
 
         client = HuggingFaceClient([api_key])
-        response = attempt_inference(client, summarize_body, ALIASES["image"].id, reply)
+        response = attempt_inference(
+            client, summarize_body, ALIASES["image"].id, reply
+        )
         if isinstance(response, str):
             return formatting.truncate(response, 420)
         return formatting.truncate(process_response(response, chan, nick), 420)
@@ -135,15 +143,24 @@ def summarize(
         output = formatting.chunk_str(response.replace("\n", " - "))
         if len(output) > 3:
             paste_url = upload_responses(
-                nick, [Message(role="assistant", content=response)], f"{nick}'s GPT summary in {chan}"
+                nick,
+                [Message(role="assistant", content=response)],
+                f"{nick}'s GPT summary in {chan}",
             )
-            output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
+            output[2] = (
+                formatting.truncate(output[2], 350)
+                + " (full response: "
+                + paste_url
+                + ")"
+            )
             return output[:3]
         return output
 
 
 @hook.command("summarize", "summary", autohelp=False)
-def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
+def summarize_command(
+    bot, reply, text: str, chan: str, nick: str, conn
+) -> str | List[str] | None:
     """Summarizes the contents of the last chat messages"""
     image = False
     if text.strip().lower() == "image":
@@ -168,17 +185,15 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
 
 
 agi_messages_cache = []
-@hook.command("agi", "sentient", autohelp=False)
-def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str] | None:
-    """<text> - Get a response from text generating LLM that is aware of the conversation."""
-    # Same logic as .summarize but with the last 30 messages and the user's message
+
+
+def generate_agi_history(conn, chan: str) -> list[str]:
     global agi_messages_cache
 
     history = list(itertools.islice(conn.history[chan], 30))
     for message in agi_messages_cache:
         history.append(message)
     messages = sorted(history, key=lambda message: message[1])[:30]
-    print(messages)
 
     inner = []
 
@@ -192,7 +207,16 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
         inner.append(fmt.format(name, mod_msg))
 
     messages = list(reversed(inner))
+    return messages
 
+
+@hook.command("agi", "sentient", autohelp=False)
+def gpts_command(
+    reply, text: str, nick: str, chan: str, conn
+) -> str | List[str] | None:
+    """<text> - Get a response from text generating LLM that is aware of the conversation."""
+    # Same logic as .summarize but with the last 30 messages and the user's message
+    messages = generate_agi_history(conn, chan)
     lb = "\n"
     body = f"""
     Given the following IRC conversation:
@@ -208,9 +232,30 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
     for message in output:
-        agi_messages_cache.append(('agi', datetime.timestamp(datetime.now()), message))
+        agi_messages_cache.append(
+            ("agi", datetime.timestamp(datetime.now()), message)
+        )
     if len(output) > 3:
-        paste_url = upload_responses(nick, [Message(role="assistant", content=response)], f"GPT conversation in {chan}")
-        output[2] = formatting.truncate(output[2], 350) + " (full response: " + paste_url + ")"
+        paste_url = upload_responses(
+            nick,
+            [Message(role="assistant", content=response)],
+            f"GPT conversation in {chan}",
+        )
+        output[2] = (
+            formatting.truncate(output[2], 350)
+            + " (full response: "
+            + paste_url
+            + ")"
+        )
         return output[:3]
     return output
+
+
+@hook.command("agipaste", autohelp=False)
+def agi_paste_command(nick: str, conn, chan: str) -> str:
+    """Pastes the AGI conversation cache to girafiles."""
+    messages = generate_agi_history(conn, chan)
+    history = [Message(role="user", content=message) for message in messages]
+    return upload_responses(
+        nick, history, f"{nick}'s AGI conversation in {chan}"
+    )
