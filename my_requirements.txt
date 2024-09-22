@@ -66,3 +66,4 @@ python-youtube==0.9.5
 youtube-transcript-api==0.6.2
 streetview==0.0.11
 pypdf==4.3.1
+pyproj==3.6.1

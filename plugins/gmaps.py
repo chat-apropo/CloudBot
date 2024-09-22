@@ -11,6 +11,7 @@ import pytz
 import requests
 from fuzzywuzzy import fuzz
 from PIL.Image import Image
+from pyproj import Geod
 from streetview import get_streetview, search_panoramas
 
 from cloudbot import hook
@@ -174,7 +175,7 @@ def upload_image(image: Image) -> str:
 
 @hook.command("sv", "streetview", autohelp=False)
 def streetview(text, reply, bot):
-    """<location> - Get a street view image from Google Maps. Possible parameters are: fov, heading, pitch, width, height - e.g. 'sv 40.7128, -74.0060 fov:120'"""
+    """<location> - Get a street view image from Google Maps. Possible parameters are: fov, heading, pitch, width, height, move (meters), move_heading - e.g. 'sv 40.7128, -74.0060 fov:120'"""
     text = text.strip()
     if not text:
         return "Usage: sv <location>"
@@ -187,12 +188,15 @@ def streetview(text, reply, bot):
         return "Too many requests. Please try again later."
 
     # Parameters have the format key:value
-    params = {}
+    params: dict[str, int] = {}
     for param in re.findall(r"\b(\w+):(-?\d+\.?\d*)\b", text):
         key, value = param
-        if key in ["fov", "heading", "pitch", "width", "height"]:
+        if key in ["fov", "heading", "pitch", "width", "height", "move", "move_heading"]:
             text = text.replace(f"{key}:{value}", "")
-            params[key] = float(value)
+            try:
+                params[key] = int(value)
+            except ValueError:
+                return f"Invalid value for parameter '{key}'. Must be a integer number."
         else:
             return f"Invalid parameter: {key}"
 
@@ -200,7 +204,6 @@ def streetview(text, reply, bot):
 
     if re.match(lat_lng_re, text):
         lat, lng = map(float, text.split(","))
-        panos = search_panoramas(lat=lat, lon=lng)
         try:
             location = GoogleLocation.from_lat_lng(lat, lng, api_key)
             location_name = location.location_name
@@ -212,7 +215,21 @@ def streetview(text, reply, bot):
         except GeolocationException as e:
             return str(e)
         location_name = location.location_name
-        panos = search_panoramas(lat=location.lat, lon=location.lng)
+        lat, lng = location.lat, location.lng
+
+    if "move" in params:
+        distance = float(params.pop("move"))
+        move_heading = params.get("move_heading", params.get("heading", 0))
+        move_heading = float(move_heading)
+
+        # Get new lat, lng in that direction
+        geod = Geod(ellps="WGS84")
+        lng, lat, _ = geod.fwd(lng, lat, move_heading, distance)
+
+    if "move_heading" in params:
+        params.pop("move_heading")
+
+    panos = search_panoramas(lat=lat, lon=lng)
 
     if not panos:
         return "No panoramas found for this location."
