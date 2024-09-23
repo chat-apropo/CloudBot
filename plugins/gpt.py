@@ -215,13 +215,6 @@ def generate_agi_history(conn, chan: str) -> list[Message]:
             "You are watching a conversation between multiple users in a chatroom and they can interact with you through the .agi command.",
         ),
     )
-    messages.append(
-        (
-            "user",
-            10e30,
-            "Respond to the last user in a brief and casual manner.",
-        ),
-    )
     return [Message(role=role, content=text) for role, _, text in messages]
 
 
