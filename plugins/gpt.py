@@ -12,6 +12,7 @@ from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
+AUTOCLEAR_AFTER = 60 * 60 * 2  # 2 hours
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
 RoleType = Literal["user", "assistant"]
@@ -21,6 +22,7 @@ RoleType = Literal["user", "assistant"]
 class Message:
     role: RoleType
     content: str
+    timestamp: float = datetime.timestamp(datetime.now())
 
     def as_dict(self):
         return {
@@ -61,7 +63,7 @@ def upload_responses(nick: str, messages: List[Message], header: str) -> str:
     return image_url
 
 
-gpt_messages_cache = {}
+gpt_messages_cache: dict[tuple[str, str], Deque[Message]] = {}
 
 
 @hook.command("gpt")
@@ -69,9 +71,15 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
     """<text> - Get a response from text generating LLM."""
     global gpt_messages_cache
 
-    channick = frozenset((chan, nick))
+    channick = (chan, nick)
     if channick not in gpt_messages_cache:
         gpt_messages_cache[channick] = deque(maxlen=16)
+
+    # Delete messages older than AUTOCLEAR_AFTER
+    now = datetime.timestamp(datetime.now())
+    for msg in list(gpt_messages_cache[channick].copy()):
+        if now - msg.timestamp > AUTOCLEAR_AFTER:
+            gpt_messages_cache[channick].remove(msg)
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
     response = get_completion(list(gpt_messages_cache[channick]))
@@ -87,12 +95,31 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
     return truncated
 
 
+@hook.command("gpth", "gpthistory", "gptpaste", autohelp=False)
+def gpt_paste_command(nick: str, chan: str, text: str) -> str:
+    """[nick] - Pastes the GPT conversation history with nick if specified."""
+    global gpt_messages_cache
+
+    text = text.strip()
+    if text:
+        nick = text
+
+    channick = (chan, nick)
+    if channick in gpt_messages_cache:
+        return upload_responses(
+            nick,
+            list(gpt_messages_cache[channick]),
+            f"{nick}'s GPT conversation in {chan}",
+        )
+    return f"No conversation history for {nick}. Start a conversation with .gpt."
+
+
 @hook.command("gptclear", autohelp=False)
 def gpt_clear_command(nick: str, chan: str) -> str:
     """Clear the conversation cache."""
     global gpt_messages_cache
 
-    channick = frozenset((chan, nick))
+    channick = (chan, nick)
     if channick in gpt_messages_cache:
         gpt_messages_cache.pop(channick)
         return "Conversation cache cleared."
