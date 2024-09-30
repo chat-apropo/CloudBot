@@ -30,10 +30,10 @@ def gse(text):
     if not cx:
         return "This command requires a custom Google Search Engine ID."
 
-    parsed = requests.get(
-        API_CS, params={"cx": cx, "q": text, "key": dev_key}
-    ).json()
+    parsed = requests.get(API_CS, params={"cx": cx, "q": text, "key": dev_key}).json()
 
+    if "error" in parsed:
+        return parsed["error"]["message"]
     try:
         result = parsed["items"][0]
     except KeyError:
@@ -65,6 +65,8 @@ def gse_gis(text):
         params={"cx": cx, "q": text, "searchType": "image", "key": dev_key},
     ).json()
 
+    if "error" in parsed:
+        return parsed["error"]["message"]
     try:
         result = parsed["items"][0]
         metadata = parsed["items"][0]["image"]
@@ -74,6 +76,4 @@ def gse_gis(text):
     dimens = "{}x{}px".format(metadata["width"], metadata["height"])
     size = filesize.size(int(metadata["byteSize"]))
 
-    return "{} [{}, {}, {}]".format(
-        result["link"], dimens, result["mime"], size
-    )
+    return "{} [{}, {}, {}]".format(result["link"], dimens, result["mime"], size)
