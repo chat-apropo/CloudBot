@@ -12,7 +12,6 @@ from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
-AUTOCLEAR_AFTER = 60 * 60 * 2  # 2 hours
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
 RoleType = Literal["user", "assistant"]
@@ -74,12 +73,6 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
     channick = (chan, nick)
     if channick not in gpt_messages_cache:
         gpt_messages_cache[channick] = deque(maxlen=16)
-
-    # Delete messages older than AUTOCLEAR_AFTER
-    now = datetime.timestamp(datetime.now())
-    for msg in list(gpt_messages_cache[channick].copy()):
-        if now - msg.timestamp > AUTOCLEAR_AFTER:
-            gpt_messages_cache[channick].remove(msg)
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
     response = get_completion(list(gpt_messages_cache[channick]))
