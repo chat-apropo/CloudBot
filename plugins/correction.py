@@ -98,7 +98,7 @@ def correction(match, conn, nick, chan, message):
 
             mod_msg = ireplace(re.escape(mod_msg), find_esc, "\x02" + replace_esc + "\x02")
 
-            mod_msg = formatting.truncate(unescape_re.sub(r"\1", mod_msg), 450)
+            mod_msg = formatting.truncate(unescape_re.sub(r"\1", mod_msg), 420)
 
             message(f"Correction, {fmt.format(name, mod_msg)}")
 
