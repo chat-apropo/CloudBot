@@ -75,15 +75,10 @@ def correction(match, conn, nick, chan, message):
             find_esc = re.escape(find)
             replace_esc = re.escape(new)
             mod_msg = unescape_re.sub(r"\1", new)
-            print(f"{exp_re=}")
-            print(f"{match[0]=}")
             for exp in re.findall(exp_re, match[0])[1:]:
                 if not exp:
                     continue
-                print(f"{exp=}")
                 find, replace, flags = exp
-                print(f"{find=}")
-                print(f"{replace=}")
                 re_flags = get_flags(flags, message)
                 new = re.sub(
                     find,
@@ -96,17 +91,9 @@ def correction(match, conn, nick, chan, message):
                 replace_esc = re.escape(new)
                 mod_msg = unescape_re.sub(r"\1", new)
 
-            mod_msg = ireplace(re.escape(mod_msg), find_esc, "\x02" + replace_esc + "\x02")
-
+            # mod_msg = ireplace(re.escape(mod_msg), find_esc, "\x02" + replace_esc + "\x02")
             mod_msg = formatting.truncate(unescape_re.sub(r"\1", mod_msg), 420)
-
             message(f"Correction, {fmt.format(name, mod_msg)}")
-
-            if nick.lower() == name.lower():
-                msg = ireplace(re.escape(msg), find_esc, replace_esc)
-                msg = unescape_re.sub(r"\1", msg)
-                conn.history[chan].append((name, timestamp, msg))
-
             break
 
     else:
