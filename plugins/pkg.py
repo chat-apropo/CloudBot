@@ -331,7 +331,7 @@ def search_dockerhub(query: str) -> Generator[Package, None, None]:
         link = f"https://hub.docker.com/r/{id}"
         version = package["short_description"]
         released = package["updated_at"]
-        description = package["short_description"] + " - " + desc
+        description = desc
         yield Package(name, version, released, description, link)
 
 
