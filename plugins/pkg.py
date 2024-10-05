@@ -290,12 +290,48 @@ def search_nuget(query: str) -> Generator[Package, None, None]:
     if not results:
         return
     for package in results[0].select("li.package"):
-        title =package.select_one("h2.package-title")
+        title = package.select_one("h2.package-title")
         name = title.text.strip()
         link = "https://www.nuget.org" + title.select_one("a").get("href").strip()
         version = package.select_one("ul.package-list").select("li")[3].text.strip().lstrip("Latest version ")
         released = package.select_one("ul.package-list").select("li")[2].text.strip()
         description = package.select_one("div.package-details").text.strip()
+        yield Package(name, version, released, description, link)
+
+
+def search_dockerhub(query: str) -> Generator[Package, None, None]:
+    url = "https://hub.docker.com/api/search/v3/catalog/search"
+    response = requests.get(url, params={"query": quote(query), "from": 0, "type": "image"})
+    if response.status_code != 200:
+        return
+    data = response.json()
+    for package in data["results"]:
+        desc = ""
+        for plan in package.get("rate_plans", []):
+            for ops in plan.get("operating_systems"):
+                oses = list(ops.values())
+                if oses and oses[0]:
+                    desc = f"\x02OS:\x02 {', '.join(oses)}"
+                    break
+            for arch in plan.get("architectures"):
+                archs = list(arch.values())
+                if archs and archs[0]:
+                    desc += f" - \x02Arch:\x02 {', '.join(arch.values())}"
+                    break
+            for repo in plan.get("repositories", []):
+                pulls = repo.get("pull_count")
+                if pulls:
+                    desc += f" - ⬇️{pulls}"
+                    break
+            if desc:
+                break
+
+        name = package["name"]
+        id = package["id"]
+        link = f"https://hub.docker.com/r/{id}"
+        version = package["short_description"]
+        released = package["updated_at"]
+        description = package["short_description"] + " - " + desc
         yield Package(name, version, released, description, link)
 
 
@@ -308,6 +344,7 @@ _REPOS = {
     ("ubuntu", "apt"): ubuntu_search,
     ("npmjs", "npm", "yarn"): search_npmjs,
     ("nuget", "dotnet", ".net"): search_nuget,
+    ("docker", "dockerhub"): search_dockerhub,
 }
 
 REPOS = {}

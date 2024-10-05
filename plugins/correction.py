@@ -2,7 +2,6 @@ import re
 
 from cloudbot import hook
 from cloudbot.util import formatting
-from cloudbot.util.formatting import ireplace
 
 correction_re = re.compile(
     r"^(?:[sS]/(?:((?:\\/|[^/])*?)(?<!\\)/((?:\\/|[^/])*?)(?:(?<!\\)/([igx]{,4}))?)\s*?;*?)(?:;\s*?[sS]/(?:((?:\\/|[^/])*?)(?<!\\)/((?:\\/|[^/])*?)(?:(?<!\\)/([igx]{,4}))?)\s*?;*?)*?$"
