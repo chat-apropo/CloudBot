@@ -1,7 +1,7 @@
 import re
 from functools import lru_cache
 from typing import Iterable, Mapping, Match, Optional, Union
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import isodate
 import requests
@@ -166,7 +166,7 @@ def get_video_info(client: Client, video_url: str | None = None, video_id: str |
 
 def search_youtube_videos(client: Client, query: str, max_results: int = 10) -> "list[str]":
     video_urls = []
-    search = client.search.list(q=quote(query), max_results=max_results)
+    search = client.search.list(q=query, max_results=max_results)
     if search is None or not search.items:
         return []
     for item in search.items:
