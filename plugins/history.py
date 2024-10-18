@@ -60,6 +60,19 @@ def track_seen(event, db):
         db.commit()
 
 
+@hook.event([EventType.message, EventType.action], singlethread=True)
+def chat_tracker(event, db, conn):
+    """
+    :type db: sqlalchemy.orm.Session
+    :type event: cloudbot.event.Event
+    :type conn: cloudbot.client.Client
+    """
+    if event.type is EventType.action:
+        event.content = "\x01ACTION {}\x01".format(event.content)
+
+    track_seen(event, db)
+
+
 @hook.command()
 def seen(text, nick, chan, db, event, is_nick_valid):
     """<nick> <channel> - tells when a nickname was last in active in one of my channels
