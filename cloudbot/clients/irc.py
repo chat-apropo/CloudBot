@@ -18,7 +18,7 @@ from cloudbot.util import async_util, colors
 
 logger = logging.getLogger("cloudbot")
 
-irc_nick_re = re.compile(r"[A-Za-z0-9^{}\[\]\-`_|\\]+")
+irc_nick_re = re.compile(r"[A-Za-z0-9^{}\[\]\-`_|\\/]+")
 
 irc_bad_chars = "".join(
     c
