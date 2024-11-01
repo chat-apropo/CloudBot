@@ -74,17 +74,13 @@ def sha224sum(text):
     return "SHA224: " + compute_hash(text, sha224)
 
 
-@hook.command(
-    "sha1", "sha1sum", "sha1s", "sha1sums", "sha1sumss", "sha1sums", "sha1sumss"
-)
+@hook.command("sha1", "sha1sum", "sha1s", "sha1sums", "sha1sumss", "sha1sums", "sha1sumss")
 def sha1sum(text):
     """<text> - Computes the SHA1 hash of <text>."""
     return "SHA1: " + compute_hash(text, sha1)
 
 
-@hook.command(
-    "md5", "md5sum", "md5s", "md5sums", "md5sumss", "md5sums", "md5sumss"
-)
+@hook.command("md5", "md5sum", "md5s", "md5sums", "md5sumss", "md5sums", "md5sumss")
 def md5sum(text):
     """<text> - Computes the MD5 hash of <text>."""
     return "MD5: " + compute_hash(text, md5)
@@ -241,22 +237,22 @@ def base16decode(text):
 @hook.command("bin")
 def mybin(text):
     """<text> - Converts <text> to binary."""
-    return "Binary: " + " ".join(bin(byte)[2:] for byte in text.encode())
+    return "Binary: " + " ".join("{:08b}".format(byte) for byte in text.encode())
 
 
 @hook.command("bindecode")
 def mybindecode(text):
     """<text> - Converts <text> from binary."""
     text = text.replace(" ", "")
-    if len(text) % 7 != 0:
-        return "Invalid binary. Length must be a multiple of 7."
+    if len(text) % 8 != 0:
+        return "Invalid binary. Length must be a multiple of 8."
 
     bytearray = []
     i = 0
     for c in text:
         if c not in "01":
-            return "Invalid binary. Must be 0s and 1s."
-        if i % 7 == 0:
+            return "Invalid binary. Must start with 01 to be ascii."
+        if i % 8 == 0:
             bytearray.append("")
         bytearray[-1] += c
         i += 1
