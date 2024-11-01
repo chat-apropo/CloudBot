@@ -4,7 +4,7 @@ attrs==21.2.0
 beautifulsoup4==4.10.0
 bs4==0.0.1
 cachetools==5.0.0
-certifi==2020.12.5
+certifi==2024.2.2
 chardet==4.0.0
 charset-normalizer==2.0.12
 cleverwrap==0.3.0.2
@@ -66,4 +66,5 @@ python-youtube==0.9.5
 youtube-transcript-api==0.6.2
 streetview==0.0.11
 pypdf==4.3.1
-pyproj==3.6.1
+pyproj==3.7.0
+curl-cffi==0.7.3
