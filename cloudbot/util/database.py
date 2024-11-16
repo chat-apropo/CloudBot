@@ -12,7 +12,7 @@ __all__ = ("metadata", "base", "Base", "Session", "configure")
 
 Base = declarative_base()
 base = Base
-metadata: MetaData = Base.metadata
+metadata: MetaData = Base.metadata  # type: ignore
 Session = scoped_session(sessionmaker())
 
 
