@@ -75,7 +75,10 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
         gpt_messages_cache[channick] = deque(maxlen=16)
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
-    response = get_completion(list(gpt_messages_cache[channick]))
+    try:
+        response = get_completion(list(gpt_messages_cache[channick]))
+    except requests.HTTPError as e:
+        return f"Error: {e}"
     gpt_messages_cache[channick].append(Message(role="assistant", content=response))
     truncated = formatting.truncate_str(response, 350)
     if len(truncated) < len(response):
@@ -86,6 +89,57 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
         )
         return f"{truncated} (full response: {paste_url})"
     return truncated
+
+
+@hook.command("gptweb", "gptapp")
+def gpt_app(text: str, nick: str, chan: str) -> str:
+    """<text> - Create a single page html web app on the fly with gpt"""
+    global gpt_messages_cache
+
+    channick = (chan, nick)
+    if channick not in gpt_messages_cache:
+        gpt_messages_cache[channick] = deque(maxlen=16)
+
+    gpt_messages_cache[channick].append(
+        Message(
+            role="user",
+            content=text
+            + "\nMake sure to put everything in a single html file so it can be a single code block meant to be directly used in a browser as it is.",
+        )
+    )
+    try:
+        response = get_completion(list(gpt_messages_cache[channick]))
+    except requests.HTTPError as e:
+        return f"Error: {e}"
+
+    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
+    # Match on multi line markdown block '````'
+    code = ""
+    start = False
+    for line in response.splitlines():
+        if "```" in line:
+            start = not start
+            if not start:
+                break
+            continue
+        if "<html>" in line:
+            start = True
+        if "</html>" in line:
+            start = False
+        if start:
+            code += line + "\n"
+        if not start:
+            break
+
+    if not code:
+        return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."
+
+    with tempfile.NamedTemporaryFile(suffix=".html") as f:
+        with open(f.name, "wb") as file:
+            file.write(code.encode("utf-8"))
+        html_url = FileIrcResponseWrapper.upload_file(f.name, "st")
+        paste_url = html_url.removesuffix(".html") + "/p"
+        return f"{paste_url}. Try online: {html_url}"
 
 
 @hook.command("gpth", "gpthistory", "gptpaste", autohelp=False)
@@ -135,7 +189,10 @@ def summarize(
 
     summarize_body = question_header + "\n".join(messages) + "\n```"
 
-    response = get_completion([Message(role="user", content=summarize_body)])
+    try:
+        response = get_completion([Message(role="user", content=summarize_body)])
+    except requests.HTTPError as e:
+        return f"Error: {e}"
 
     if image:
         from plugins.huggingface import (
@@ -243,7 +300,10 @@ def gpts_command(reply, text: str, nick: str, chan: str, conn) -> str | List[str
     """<text> - Get a response from text generating LLM that is aware of the conversation."""
     # Same logic as .summarize but with the last 30 messages and the user's message
     messages = generate_agi_history(conn, chan)
-    response = get_completion(messages)
+    try:
+        response = get_completion(messages)
+    except requests.HTTPError as e:
+        return f"Error: {e}"
 
     # Output at most 3 messages
     output = formatting.chunk_str(response.replace("\n", " - "))
