@@ -8,13 +8,13 @@ from argparse import Namespace
 from dataclasses import InitVar, dataclass
 from datetime import datetime
 from typing import Generator, Union
-from urllib.parse import quote, urljoin
+from urllib.parse import quote
 
-import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests
+from thefuzz import fuzz
 
 from cloudbot import hook
-from cloudbot.util.queue import Queue
 
 
 class Config:
@@ -28,6 +28,7 @@ class Config:
 
 
 config = Config()
+MAX_RESULTS = 30
 
 
 @dataclass
@@ -72,55 +73,41 @@ def pypi_search(query: str, opts: Union[dict, Namespace] = {}) -> Generator[Pack
     Yields:
         Package: package object
     """
-    snippets = []
     s = requests.Session()
-    for page in range(1, config.page_size + 1):
-        params = {"q": query, "page": page}
-        r = s.get(config.api_url, params=params)
-        soup = BeautifulSoup(r.text, "html.parser")
-        snippets += soup.select('a[class*="package-snippet"]')
+    headers = {
+        "Accept": "application/vnd.pypi.simple.v1+json",
+    }
 
-    if "sort" in opts:
-        if opts.sort == "name":
-            snippets = sorted(
-                snippets,
-                key=lambda s: s.select_one('span[class*="package-snippet__name"]').text.strip(),
-            )
-        elif opts.sort == "version":
-            from pkg_resources import parse_version
-
-            snippets = sorted(
-                snippets,
-                key=lambda s: parse_version(s.select_one('span[class*="package-snippet__version"]').text.strip()),
-            )
-        elif opts.sort == "released":
-            snippets = sorted(
-                snippets,
-                key=lambda s: s.select_one('span[class*="package-snippet__created"]').find("time")["datetime"],
-            )
-
-    for snippet in snippets:
-        link = urljoin(config.api_url, snippet.get("href"))
-        package = re.sub(
-            r"\s+",
-            " ",
-            snippet.select_one('span[class*="package-snippet__name"]').text.strip(),
-        )
-        version = re.sub(
-            r"\s+",
-            " ",
-            snippet.select_one('span[class*="package-snippet__version"]').text.strip(),
-        )
-        released = re.sub(
-            r"\s+",
-            " ",
-            snippet.select_one('span[class*="package-snippet__created"]').find("time")["datetime"],
-        )
-        description = re.sub(
-            r"\s+",
-            " ",
-            snippet.select_one('p[class*="package-snippet__description"]').text.strip(),
-        )
+    response = s.get("https://pypi.org/simple/", headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    matches = [p["name"] for p in data["projects"] if query.casefold() in p["name"].casefold()]
+    if not matches:
+        return
+    # Sort by proximity to query
+    matches.sort(key=lambda x: fuzz.ratio(query, x), reverse=True)
+    matches = matches[:MAX_RESULTS]
+    for name in matches:
+        response = s.get(f"https://pypi.org/pypi/{name}/json", headers=headers)
+        if response.status_code != 200:
+            yield Package(name, "-!Failed to get info!-", "", "", "")
+            continue
+        data = response.json()
+        info = data["info"]
+        package = info["name"]
+        version = info["version"]
+        link = info["package_url"]
+        releases = data["releases"]
+        if version in releases and len(releases[version]) > 0:
+            released = releases[version][0]["upload_time"]
+        else:
+            version_ = next(iter(releases))
+            if len(releases[version_]) > 0:
+                released = releases[version_][0]["upload_time"]
+                version = version_
+            else:
+                released = ""
+        description = info["summary"]
         yield Package(package, version, released, description, link)
 
 
@@ -356,7 +343,7 @@ for k, v in _REPOS.items():
             REPOS[i] = v
 
 
-results_queue = Queue()
+results_queue = {}
 
 
 @hook.command("pkglist", autohelp=False)
@@ -368,8 +355,8 @@ def pkglist():
 def pop3(results, reply):
     for _ in range(3):
         try:
-            reply(str(results.pop()))
-        except IndexError:
+            reply(str(next(results)))
+        except StopIteration:
             return "No [more] results found."
 
 
@@ -377,17 +364,15 @@ def pop3(results, reply):
 def pkgn(text, bot, chan, nick, reply):
     """<nick> - Returns next search result for pkg command for nick or yours by default"""
     global results_queue
-    results = results_queue[chan][nick]
+    if (chan, nick) not in results_queue:
+        return f"Nick '{nick}' has no queue."
+    results = results_queue[(chan, nick)]
     user = text.strip().split()[0] if text.strip() else ""
     if user:
         if user in results_queue[chan]:
             results = results_queue[chan][user]
         else:
             return f"Nick '{user}' has no queue."
-
-    if len(results) == 0:
-        return "No [more] results found."
-
     return pop3(results, reply)
 
 
@@ -402,9 +387,9 @@ def pkg(text, bot, chan, nick, reply):
     if repo not in REPOS:
         return f"Repo '{repo}' not found. Use .'pkglist' to see available repos."
 
-    results_queue[chan][nick] = REPOS[repo](" ".join(text.strip().split()[1:]))
-    results = results_queue[chan][nick]
-    if results is None or len(results) == 0:
+    results_queue[(chan, nick)] = REPOS[repo](" ".join(text.strip().split()[1:]))
+    results = results_queue[(chan, nick)]
+    if results is None or not results:
         return "No [more] results found."
 
     return pop3(results, reply)
