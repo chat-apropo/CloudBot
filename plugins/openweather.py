@@ -18,4 +18,9 @@ def weater(text):
     x = curweath.by_cname(text)
     if "message" in x:
         return x["message"]
-    return f"{x.name} (\x02Country\x02: {x.sys.country}, \x02lat\x02: {x.coord.lat}, \x02long\x02: {x.coord.lon}) -- \x02{x.weather[0].description}\x02 {round(x.main.temp-273.15) }Cº \x02min\x02: {round(x.main.temp_min-273.15)}Cº \x02max\x02: {round(x.main.temp_max-273.15)}Cº \x02sensation\x02: {round(x.main.feels_like-273.15)}Cº \x02humidity\x02: {x.main.humidity}%"
+    return (
+        f"{x.name} (\x02Country\x02: {x.sys.country}, \x02lat\x02: {x.coord.lat}, \x02long\x02: {x.coord.lon}) --"
+        f" \x02{x.weather[0].description}\x02 {round(x.main.temp-273.15) }Cº \x02min\x02:"
+        f" {round(x.main.temp_min-273.15)}Cº \x02max\x02: {round(x.main.temp_max-273.15)}Cº \x02sensation\x02:"
+        f" {round(x.main.feels_like-273.15)}Cº \x02humidity\x02: {x.main.humidity}%"
+    )
