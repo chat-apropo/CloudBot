@@ -173,6 +173,9 @@ def gpt_clear_command(nick: str, chan: str) -> str:
     return "No conversation cache to clear."
 
 
+last_summary = ""
+
+
 def summarize(
     messages: List[str],
     image: bool,
@@ -182,6 +185,7 @@ def summarize(
     reply,
     what: str = "conversation",
 ) -> str | List[str] | None:
+    global last_summary
     if image:
         question_header = f"Please convert the following {what} into an image prompt for a text generating model with only the main keywords separated by comma: \n```"
     else:
@@ -213,6 +217,7 @@ def summarize(
         return formatting.truncate(process_response(response, chan, nick), 420)
     else:
         # Output at most 3 messages
+        last_summary = response
         output = formatting.chunk_str(response.replace("\n", " - "))
         if len(output) > 3:
             paste_url = upload_responses(
@@ -248,6 +253,15 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
 
     messages = list(reversed(inner))
     return summarize(messages, image, nick, chan, bot, reply)
+
+
+@hook.command("sumsum", "sumsummarize", "sumsummary", autohelp=False)
+def sumsum(bot, text: str, reply, nick: str, chan: str, conn) -> str | List[str] | None:
+    """Summarizes the last summary"""
+    global last_summary
+    if not last_summary:
+        return "No summary to summarize."
+    return summarize([last_summary], False, nick, chan, bot, reply, what="text even more")
 
 
 agi_messages_cache: Deque[tuple[float, str]] = deque(maxlen=AGI_HISTORY_LENGTH)
