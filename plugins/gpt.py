@@ -184,6 +184,7 @@ def summarize(
     bot,
     reply,
     what: str = "conversation",
+    max_words: int = None,
 ) -> str | List[str] | None:
     global last_summary
     if image:
@@ -192,6 +193,9 @@ def summarize(
         question_header = f"Please summarize the following {what}: \n```"
 
     summarize_body = question_header + "\n".join(messages) + "\n```"
+
+    if max_words:
+        summarize_body += f"Use at most {max_words} words."
 
     try:
         response = get_completion([Message(role="user", content=summarize_body)])
@@ -234,8 +238,12 @@ def summarize(
 def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
     """Summarizes the contents of the last chat messages"""
     image = False
+    worcount = None
     if text.strip().lower() == "image":
         image = True
+
+    if text.strip().lower().isdigit():
+        worcount = int(text.strip())
 
     inner = []
     i = 0
@@ -252,7 +260,7 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
             break
 
     messages = list(reversed(inner))
-    return summarize(messages, image, nick, chan, bot, reply)
+    return summarize(messages, image, nick, chan, bot, reply, max_words=worcount)
 
 
 @hook.command("sumsum", "sumsummarize", "sumsummary", autohelp=False)
