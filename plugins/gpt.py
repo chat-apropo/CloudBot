@@ -104,7 +104,7 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
         Message(
             role="user",
             content=text
-            + "\nMake sure to put everything in a single html file so it can be a single code block meant to be directly used in a browser as it is.",
+            + "\nMake sure to put everything in a single html file so it can be a single code block meant to be directly used in a browser as it is. Do not explain, just show the code.",
         )
     )
     try:
@@ -128,8 +128,6 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
             start = False
         if start:
             code += line + "\n"
-        if not start:
-            break
 
     if not code:
         return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."

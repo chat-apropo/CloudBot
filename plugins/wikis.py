@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Callable
 
 import mwparserfromhell
+from curl_cffi import requests
 from mediawiki import MediaWiki, exceptions
 
 from cloudbot import hook
@@ -58,10 +59,24 @@ state = {}
 MAX_SUMMARY = 250
 
 
+class MyMediaWiki(MediaWiki):
+    def _reset_session(self):
+        """Set session information"""
+        if self._session:
+            self._session.close()
+
+        headers = {"User-Agent": self._user_agent}
+        self._session = requests.Session()
+        self._session.headers.update(headers)
+        if self._proxies is not None:
+            self._session.proxies.update(self._proxies)
+        self._is_logged_in = False
+
+
 def wiki_builder(url: str) -> Callable[[], MediaWiki]:
     @lru_cache
     def get_wiki():
-        return MediaWiki(url)
+        return MyMediaWiki(url)
 
     return get_wiki
 
@@ -123,6 +138,9 @@ def search(wiki: tuple, query: str, chan, nick) -> str:
     global state
     try:
         wikipedia = state[wiki].metadata.get_wiki()
+    except Exception as e:
+        return f"Error loading wiki: {e}"
+    try:
         state[wiki][chan][nick] = wikipedia.search(query)
     except Exception as e:
         return f"Error: {e}"
