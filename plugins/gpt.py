@@ -384,6 +384,9 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
         else:
             messages.append(Message(role="user", content=f"{name} said: {mod_msg}"))
 
+        if len(messages) >= AGI_HISTORY_LENGTH:
+            break
+
     if not messages:
         return f"No chat history found for {text.strip()}."
 
