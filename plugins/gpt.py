@@ -357,3 +357,42 @@ def agi_paste_command(nick: str, conn, chan: str) -> str:
     """Pastes the AGI context window."""
     messages = generate_agi_history(conn, chan)
     return upload_responses("", messages, f"AGI conversation in {chan}")
+
+
+@hook.command("gpredict", "gptpredict", "gptpred", "predict", autohelp=False)
+def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
+    """<nick> - Predict what the given user might say next based on their chat history."""
+    if not text.strip():
+        return "Error: You must provide a nick to predict."
+
+    if len(text.split()) > 1:
+        return "Error: Only one nick can be provided."
+
+    target_nick = text.strip().casefold()
+    messages = []
+    for name, _timestamp, msg in reversed(conn.history[chan]):
+        # Skip bot commands
+        if msg.startswith("."):
+            continue
+        if msg.startswith("\x01ACTION"):
+            mod_msg = msg[7:].strip(" \x01")
+            fmt = "* {}: {}"
+        else:
+            mod_msg = msg
+            fmt = "{}: {}"
+
+        if name.casefold() == target_nick:
+            messages.append(Message(role="assistant", content=mod_msg))
+        else:
+            messages.append(Message(role="user", content=f"{name} said: {mod_msg}"))
+
+    if not messages:
+        return f"No chat history found for {text.strip()}."
+
+    messages.reverse()  # Ensure messages are in chronological order
+    try:
+        response = get_completion(messages)
+    except requests.HTTPError as e:
+        return f"Error: {e}"
+
+    return f"<{target_nick}> {formatting.truncate_str(response, 350)}"
