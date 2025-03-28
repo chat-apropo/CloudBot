@@ -182,7 +182,7 @@ def summarize(
     bot,
     reply,
     what: str = "conversation",
-    max_words: int = None,
+    max_words: int | None = None,
 ) -> str | List[str] | None:
     global last_summary
     if image:
@@ -234,18 +234,27 @@ def summarize(
 
 @hook.command("summarize", "summary", autohelp=False)
 def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str | List[str] | None:
-    """Summarizes the contents of the last chat messages"""
+    """Summarizes the contents of the last chat messages. Optionally pass a number for max words and nicks to summarize. Sorry yeah if your nick is a number fuck you"""
     image = False
     worcount = None
     if text.strip().lower() == "image":
         image = True
 
-    if text.strip().lower().isdigit():
-        worcount = int(text.strip())
+    args = text.split()
+    worcount = None
+    nicks = []
+    for arg in args:
+        if arg.strip().lower().isdigit():
+            worcount = int(arg)
+        else:
+            nicks.append(arg.casefold())
 
     inner = []
     i = 0
     for name, _timestamp, msg in reversed(conn.history[chan]):
+        if nicks and name.casefold() not in nicks:
+            continue
+
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
             fmt = "* {}: {}"
