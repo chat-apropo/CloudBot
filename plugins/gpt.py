@@ -267,6 +267,9 @@ def summarize_command(bot, reply, text: str, chan: str, nick: str, conn) -> str 
             break
 
     messages = list(reversed(inner))
+    if not messages:
+        reply("Nothing found in history to summarize")
+        return
     return summarize(messages, image, nick, chan, bot, reply, max_words=worcount)
 
 
