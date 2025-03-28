@@ -400,6 +400,12 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
             content="You are in a conversation with multiple people in a chat. Try to behave relaxed, casual and in character like another user.",
         ),
     )
+    messages.append(
+        Message(
+            role="user",
+            content=f"Continue the conversation responding as {target_nick}. Make sure to stay in character.",
+        )
+    )
     try:
         response = get_completion(messages)
     except requests.HTTPError as e:
