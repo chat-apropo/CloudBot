@@ -370,6 +370,7 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
 
     target_nick = text.strip().casefold()
     messages = []
+    was_user_in_history = False
     for name, _timestamp, msg in reversed(conn.history[chan]):
         # Skip bot commands
         if msg.startswith("."):
@@ -381,13 +382,14 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
 
         if name.casefold() == target_nick:
             messages.append(Message(role="assistant", content=mod_msg))
+            was_user_in_history = True
         else:
             messages.append(Message(role="user", content=f"{name} said: {mod_msg}"))
 
         if len(messages) >= AGI_HISTORY_LENGTH:
             break
 
-    if not messages:
+    if not was_user_in_history or not messages:
         return f"No chat history found for {text.strip()}."
 
     messages.reverse()  # Ensure messages are in chronological order
