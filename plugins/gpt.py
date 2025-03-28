@@ -376,10 +376,8 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
             continue
         if msg.startswith("\x01ACTION"):
             mod_msg = msg[7:].strip(" \x01")
-            fmt = "* {}: {}"
         else:
             mod_msg = msg
-            fmt = "{}: {}"
 
         if name.casefold() == target_nick:
             messages.append(Message(role="assistant", content=mod_msg))
@@ -390,6 +388,13 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
         return f"No chat history found for {text.strip()}."
 
     messages.reverse()  # Ensure messages are in chronological order
+    messages.insert(
+        0,
+        Message(
+            role="user",
+            content="You are in a conversation with multiple people in a chat. Try to behave relaxed, casual and in character like another user.",
+        ),
+    )
     try:
         response = get_completion(messages)
     except requests.HTTPError as e:
