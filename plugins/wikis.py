@@ -52,6 +52,7 @@ APIS = {
     ("conservapedia", "wcp"): "https://www.conservapedia.com/api.php",
     ("zncbouncer", "znc"): "https://wiki.znc.in/api.php",
     ("unrealircd", "wu"): "https://www.unrealircd.org/docwiki/api.php",
+    ("wikih4ks", "wh"): "https://wiki.h4ks.com/api.php",
 }
 
 state = {}
