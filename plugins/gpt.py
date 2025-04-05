@@ -4,11 +4,11 @@ import tempfile
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Deque, List, Literal
 
 import pywikibot
 import requests
-from pywikibot import login
 
 from cloudbot import hook
 from cloudbot.util import formatting
@@ -23,8 +23,20 @@ RoleType = Literal["user", "assistant"]
 WIKI = ("wikih4ks", "wh")
 
 
+@lru_cache
+def patch_input(wiki_password: str):
+    def mock_input(question, password=False, default="", force=False):
+        if password:
+            return wiki_password
+        from pywikibot import input as original_input
+
+        return original_input(question, password=password, default=default, force=force)
+
+    pywikibot.input = mock_input
+
+
 def detect_code_blocks(markdown_text: str) -> list[str]:
-    code_block_pattern = re.compile(r"```\S*(.*?)```", re.DOTALL)
+    code_block_pattern = re.compile(r"```\S*(.*)```", re.DOTALL)
     return code_block_pattern.findall(markdown_text)
 
 
@@ -115,7 +127,8 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
         Message(
             role="user",
             content=text
-            + "\nMake sure to put everything in a single html file so it can be a single code block meant to be directly used in a browser as it is. Do not explain, just show the code.",
+            + "\nMake sure to put everything in a single html file so it can be a single code block meant to be"
+            " directly used in a browser as it is. Do not explain, just show the code.",
         )
     )
     try:
@@ -183,7 +196,10 @@ def summarize(
 ) -> str | List[str] | None:
     global last_summary
     if image:
-        question_header = f"Please convert the following {what} into an image prompt for a text generating model with only the main keywords separated by comma: \n```"
+        question_header = (
+            f"Please convert the following {what} into an image prompt for a text generating model with only the main"
+            " keywords separated by comma: \n```"
+        )
     else:
         question_header = f"Please summarize the following {what}: \n```"
 
@@ -318,7 +334,10 @@ def generate_agi_history(conn, chan: str) -> list[Message]:
         (
             "user",
             -1,
-            "You are watching a conversation between multiple users in a chatroom and they can interact with you through the .agi command.",
+            (
+                "You are watching a conversation between multiple users in a chatroom and they can interact with you"
+                " through the .agi command."
+            ),
         ),
     )
     return [Message(role=role, content=text) for role, _, text in messages]
@@ -394,7 +413,10 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
         0,
         Message(
             role="user",
-            content="You are in a conversation with multiple people in a chat. Try to behave relaxed, casual and in character like another user.",
+            content=(
+                "You are in a conversation with multiple people in a chat. Try to behave relaxed, casual and in"
+                " character like another user."
+            ),
         ),
     )
     messages.append(
@@ -418,33 +440,36 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
     wiki_password = bot.config.get_api_key("wiki_password")
     if not user or not wiki_password:
         return "Error: Missing wiki username or password in config."
+    patch_input(wiki_password)
 
-    original_input = pywikibot.input
-
-    def patch_input(question, password=False, default="", force=False):
-        if password:
-            return wiki_password
-        return original_input(question, password=password, default=default, force=force)
-
-    pywikibot.input = patch_input
     site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
 
     title, text = text.split(" ", 1)
 
     page = pywikibot.Page(site, title)
     if page.exists():
-        reply(f"Page already exists: {page.full_url()}. I will replace it...")
+        reply(f"Editing page at {page.full_url()}  ...")
+    else:
+        reply(f"Creating page {page.full_url()}  ...")
 
-    messages = generate_agi_history(conn, chan)
-    messages.append(
+    channick = (chan, nick)
+    if channick not in gpt_messages_cache:
+        gpt_messages_cache[channick] = deque(maxlen=16)
+
+    gpt_messages_cache[channick].append(
         Message(
-            role="user", content=text + "\nOutput it in the mediawiki format in a single code block for a wiki page."
+            role="user",
+            content=text
+            + "\nOutput the result as a mediawiki code block meant for a wiki page. Use <pre> for code blocks and use"
+            " only wiki markup. Do not explain, just show the code.",
         )
     )
     try:
-        response = get_completion(messages)
+        response = get_completion(list(gpt_messages_cache[channick]))
     except requests.HTTPError as e:
         return f"Error: {e}"
+
+    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
 
     code_blocks = detect_code_blocks(response)
     if not code_blocks:
@@ -461,4 +486,4 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
         page.text = wiki_text
         page.save("Created by GPT bot from irc")
 
-    return [page.full_url(), search(WIKI, title, chan, nick)]
+    return search(WIKI, title, chan, nick)
