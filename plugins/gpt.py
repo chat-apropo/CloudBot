@@ -1,4 +1,5 @@
 import copy
+import re
 import tempfile
 from collections import deque
 from dataclasses import dataclass
@@ -15,6 +16,11 @@ API_URL = "https://g4f.cloud.mattf.one/api/completions"
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
 RoleType = Literal["user", "assistant"]
+
+
+def detect_code_blocks(markdown_text: str) -> list[str]:
+    code_block_pattern = re.compile(r"```\S*(.*?)```", re.DOTALL)
+    return code_block_pattern.findall(markdown_text)
 
 
 @dataclass
@@ -114,27 +120,13 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
 
     gpt_messages_cache[channick].append(Message(role="assistant", content=response))
     # Match on multi line markdown block '````'
-    code = ""
-    start = False
-    for line in response.splitlines():
-        if "```" in line:
-            start = not start
-            if not start:
-                break
-            continue
-        if "<html>" in line:
-            start = True
-        if "</html>" in line:
-            start = False
-        if start:
-            code += line + "\n"
-
-    if not code:
+    code_blocks = detect_code_blocks(response)
+    if not code_blocks:
         return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."
 
     with tempfile.NamedTemporaryFile(suffix=".html") as f:
         with open(f.name, "wb") as file:
-            file.write(code.encode("utf-8"))
+            file.write(code_blocks[0].encode("utf-8").strip())
         html_url = FileIrcResponseWrapper.upload_file(f.name, "st")
         paste_url = html_url.removesuffix(".html") + "/p"
         return f"{paste_url}. Try online: {html_url}"
