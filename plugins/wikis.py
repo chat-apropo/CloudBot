@@ -18,7 +18,7 @@ from cloudbot.util.queue import Queue
 # The key is a tuple starting with the wiki name all those values will be used as the bot commands.
 # The value is the api url.
 # (commands, tuple, ...): "api_url"
-APIS = {
+WIKI_APIS = {
     ("wikipedia", "w"): "https://en.wikipedia.org/w/api.php",
     ("wikipedia_brasil", "wbr"): "https://br.wikipedia.org/w/api.php",
     ("wikipedia_portugal", "wpt"): "https://pt.wikipedia.org/w/api.php",
@@ -86,9 +86,9 @@ def wiki_builder(url: str) -> Callable[[], MediaWiki]:
 def on_start():
     global state, API
     state = {}
-    for wiki in APIS:
+    for wiki in WIKI_APIS:
         state[wiki] = Queue()
-        state[wiki].metadata.get_wiki = wiki_builder(APIS[wiki])
+        state[wiki].metadata.get_wiki = wiki_builder(WIKI_APIS[wiki])
 
 
 def summary_from_page(text: str) -> str:
@@ -192,12 +192,12 @@ def make_next_hook(commands):
 @hook.command("wikilist", autohelp=False)
 def wikilist(text, bot, chan, nick):
     """List all wikisi and their commands"""
-    return "Available wikis: " + " - ".join([": ".join(w) for w in APIS.keys()])
+    return "Available wikis: " + " - ".join([": ".join(w) for w in WIKI_APIS.keys()])
 
 
 # Store as a dict to avoid repetition and so that the cloudbot hook.command call atually works
 hooks_map = {}
-for commands in APIS:
+for commands in WIKI_APIS:
     hooks_map[tuple(commands)] = make_search_hook(commands)
 
     # creates the next commands

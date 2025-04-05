@@ -6,16 +6,21 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Deque, List, Literal
 
+import pywikibot
 import requests
+from pywikibot import login
 
 from cloudbot import hook
 from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
+from plugins.wikis import WIKI_APIS, search
 
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
 RoleType = Literal["user", "assistant"]
+
+WIKI = ("wikih4ks", "wh")
 
 
 def detect_code_blocks(markdown_text: str) -> list[str]:
@@ -404,3 +409,56 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
         return f"Error: {e}"
 
     return f"<{target_nick}> {formatting.truncate_str(response, 350)}"
+
+
+@hook.command("gptwiki", autohelp=False)
+def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
+    """<title> <text> - Create or edit a wiki page on demand from AI prompt"""
+    user = bot.config.get_api_key("wiki_username")
+    wiki_password = bot.config.get_api_key("wiki_password")
+    if not user or not wiki_password:
+        return "Error: Missing wiki username or password in config."
+
+    original_input = pywikibot.input
+
+    def patch_input(question, password=False, default="", force=False):
+        if password:
+            return wiki_password
+        return original_input(question, password=password, default=default, force=force)
+
+    pywikibot.input = patch_input
+    site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
+
+    title, text = text.split(" ", 1)
+
+    page = pywikibot.Page(site, title)
+    if page.exists():
+        reply(f"Page already exists: {page.full_url()}. I will replace it...")
+
+    messages = generate_agi_history(conn, chan)
+    messages.append(
+        Message(
+            role="user", content=text + "\nOutput it in the mediawiki format in a single code block for a wiki page."
+        )
+    )
+    try:
+        response = get_completion(messages)
+    except requests.HTTPError as e:
+        return f"Error: {e}"
+
+    code_blocks = detect_code_blocks(response)
+    if not code_blocks:
+        return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."
+
+    wiki_text = code_blocks[0].strip()
+    if not wiki_text:
+        return "Error: No text found in the response."
+
+    if page.exists():
+        page.text = wiki_text
+        page.save("Edited by GPT bot from irc")
+    else:
+        page.text = wiki_text
+        page.save("Created by GPT bot from irc")
+
+    return [page.full_url(), search(WIKI, title, chan, nick)]
