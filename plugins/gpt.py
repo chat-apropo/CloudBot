@@ -500,7 +500,7 @@ def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Mess
     page.text = wiki_text
     try:
         page.save("Edited by GPT bot from irc")
-    except KeyError:
+    except (KeyError, pywikibot.exceptions.OtherPageSaveError):
         # Reload module to get the new password
         importlib.reload(pywikibot)
         patch_input(bot.config.get_api_key("wiki_password"))
