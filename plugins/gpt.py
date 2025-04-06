@@ -123,16 +123,8 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
     return truncated
 
 
-@hook.command("gptweb", "gptapp")
-def gpt_app(text: str, nick: str, chan: str) -> str:
-    """<text> - Create a single page html web app on the fly with gpt"""
-    global gpt_messages_cache
-
-    channick = (chan, nick)
-    if channick not in gpt_messages_cache:
-        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
-
-    gpt_messages_cache[channick].append(
+def create_web_app(text: str, history: list[Message] | Deque[Message]) -> str:
+    history.append(
         Message(
             role="user",
             content=text
@@ -141,11 +133,11 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
         )
     )
     try:
-        response = get_completion(list(gpt_messages_cache[channick]))
+        response = get_completion(list(history))
     except requests.HTTPError as e:
         return f"Error: {e}"
 
-    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
+    history.append(Message(role="assistant", content=response))
     # Match on multi line markdown block '````'
     code_blocks = detect_code_blocks(response)
     if not code_blocks:
@@ -157,6 +149,25 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
         html_url = FileIrcResponseWrapper.upload_file(f.name, "st")
         paste_url = html_url.removesuffix(".html") + "/p"
         return f"{paste_url}. Try online: {html_url}"
+
+
+@hook.command("gptweb", "gptapp")
+def gpt_app(text: str, nick: str, chan: str) -> str:
+    """<text> - Create a single page html web app on the fly with gpt"""
+    global gpt_messages_cache
+
+    channick = (chan, nick)
+    if channick not in gpt_messages_cache:
+        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
+
+    return create_web_app(text, gpt_messages_cache[channick])
+
+
+@hook.command("agiweb", "agiapp")
+def agi_app(conn, text: str, nick: str, chan: str) -> str:
+    """<text> - Create a single page html web app on the fly with gpt"""
+    messages = generate_agi_history(conn, chan)
+    return create_web_app(text, messages)
 
 
 @hook.command("gpth", "gpthistory", "gptpaste", autohelp=False)
@@ -520,6 +531,7 @@ def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Mess
 @hook.command("gptwiki", autohelp=False)
 def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
     """<text> - Create or edit a wiki page on demand from AI prompt"""
+    global gpt_messages_cache
     channick = (chan, nick)
     if channick not in gpt_messages_cache:
         gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
