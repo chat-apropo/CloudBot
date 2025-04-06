@@ -448,8 +448,8 @@ def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Mess
         Message(
             role="user",
             content=prompt
-            + "\nOutput the result as a mediawiki code block meant for a wiki page. Use <pre> for code blocks within"
-            " the page and use only wiki markup. Do not explain, just show the code in a single markdown code block.",
+            + "\nOutput the result as a mediawiki code block meant for a wiki page. Make sure to use mediawiki markup"
+            " or html tags that mediawiki supports in the code block.",
         )
     )
     try:
