@@ -1,16 +1,17 @@
 import copy
+import importlib
 import re
 import tempfile
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from functools import lru_cache
 from typing import Deque, List, Literal
 
 import pywikibot
 import requests
 
 from cloudbot import hook
+from cloudbot.bot import bot
 from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
 from plugins.wikis import WIKI_APIS, search
@@ -23,7 +24,6 @@ RoleType = Literal["user", "assistant"]
 WIKI = ("wikih4ks", "wh")
 
 
-@lru_cache
 def patch_input(wiki_password: str):
     def mock_input(question, password=False, default="", force=False):
         if password:
@@ -33,6 +33,14 @@ def patch_input(wiki_password: str):
         return original_input(question, password=password, default=default, force=force)
 
     pywikibot.input = mock_input
+
+
+@hook.on_start()
+def on_start():
+    wiki_password = bot.config.get_api_key("wiki_password")
+    if not wiki_password:
+        return
+    patch_input(wiki_password)
 
 
 def detect_code_blocks(markdown_text: str) -> list[str]:
@@ -435,22 +443,8 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
 
 @hook.command("gptwiki", autohelp=False)
 def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
-    """<title> <text> - Create or edit a wiki page on demand from AI prompt"""
+    """<text> - Create or edit a wiki page on demand from AI prompt"""
     user = bot.config.get_api_key("wiki_username")
-    wiki_password = bot.config.get_api_key("wiki_password")
-    if not user or not wiki_password:
-        return "Error: Missing wiki username or password in config."
-    patch_input(wiki_password)
-
-    site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
-
-    title, text = text.split(" ", 1)
-
-    page = pywikibot.Page(site, title)
-    if page.exists():
-        reply(f"Editing page at {page.full_url()}  ...")
-    else:
-        reply(f"Creating page {page.full_url()}  ...")
 
     channick = (chan, nick)
     if channick not in gpt_messages_cache:
@@ -460,8 +454,8 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
         Message(
             role="user",
             content=text
-            + "\nOutput the result as a mediawiki code block meant for a wiki page. Use <pre> for code blocks and use"
-            " only wiki markup. Do not explain, just show the code.",
+            + "\nOutput the result as a mediawiki code block meant for a wiki page. Use <pre> for code blocks within"
+            " the page and use only wiki markup. Do not explain, just show the code in a single markdown code block.",
         )
     )
     try:
@@ -479,11 +473,49 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
     if not wiki_text:
         return "Error: No text found in the response."
 
-    if page.exists():
-        page.text = wiki_text
-        page.save("Edited by GPT bot from irc")
+    # Extract the title from the wiki text as the first line without surrounding "=="
+    match = re.search(r"^=+\s*(.*?)\s*=+", wiki_text, re.MULTILINE)
+    if match:
+        title = match.group(1).strip()
     else:
+        # Ask AI for a title
+        response = get_completion(
+            list(gpt_messages_cache[channick])
+            + [
+                Message(
+                    role="user",
+                    content=(
+                        "What is the title of this page? Respond with a single line with the title, no explanation,"
+                        " just the answer."
+                    ),
+                )
+            ],
+        )
+        title = response.strip()
+
+    site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
+    page = pywikibot.Page(site, title)
+
+    if page.exists():
+        reply(f"Editing page at {page.full_url()} ...")
+    else:
+        reply(f"Creating page {page.full_url()} ...")
+
+    page.text = wiki_text
+    try:
+        page.save("Edited by GPT bot from irc")
+    except KeyError:
+        # Reload module to get the new password
+        importlib.reload(pywikibot)
+        patch_input(bot.config.get_api_key("wiki_password"))
+        site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
+        page = pywikibot.Page(site, title)
         page.text = wiki_text
-        page.save("Created by GPT bot from irc")
+        try:
+            page.save("Edited by GPT bot from irc")
+        except Exception as e:
+            return f"Error: {e}"
+    except Exception as e:
+        return f"Error: {e}"
 
     return search(WIKI, title, chan, nick)
