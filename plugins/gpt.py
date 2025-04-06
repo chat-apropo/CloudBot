@@ -490,13 +490,15 @@ def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Mess
         reply(f"Editing page at {page.full_url()} ...")
         # Refrese the prompt to avoid the bot thinking it is a new page, give it the old page as a context
         history[-1].content = (
-            f"Please edit the following page with the following content:\n{page.text}\n\n{wiki_text}\n"
+            f"Please edit the following page content:\n```mediawiki\n{page.text}\n```\n\n{wiki_text}\n"
             + history[-1].content
         )
         try:
             response = get_completion(list(history))
         except requests.HTTPError as e:
             return f"Error: {e}"
+
+        history.append(Message(role="assistant", content=response))
         code_blocks = detect_code_blocks(response)
         if not code_blocks:
             return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."
@@ -506,24 +508,23 @@ def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Mess
             return "Error: No text found in the response."
     else:
         reply(f"Creating page {page.full_url()} ...")
+        history.append(Message(role="assistant", content=response))
 
-    history.append(Message(role="assistant", content=response))
-    page.text = wiki_text
-    try:
-        page.save("Edited by GPT bot from irc")
-    except (KeyError, pywikibot.exceptions.OtherPageSaveError):
-        # Reload module to get the new password
-        importlib.reload(pywikibot)
-        patch_input(bot.config.get_api_key("wiki_password"))
-        site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
-        page = pywikibot.Page(site, title)
+    error = "Unknown error"
+    for _ in range(3):
         page.text = wiki_text
         try:
             page.save("Edited by GPT bot from irc")
+            break
         except Exception as e:
-            return f"Error: {e}"
-    except Exception as e:
-        return f"Error: {e}"
+            # Reload module to get the new password
+            importlib.reload(pywikibot)
+            patch_input(bot.config.get_api_key("wiki_password"))
+            site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
+            page = pywikibot.Page(site, title)
+            error = str(e)
+    else:
+        return f"Error: {error}"
 
     return search(WIKI, title, chan, nick)
 
