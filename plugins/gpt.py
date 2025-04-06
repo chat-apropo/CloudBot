@@ -19,6 +19,7 @@ from plugins.wikis import WIKI_APIS, search
 API_URL = "https://g4f.cloud.mattf.one/api/completions"
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
+MAX_USER_HISTORY_LENGTH = 32
 RoleType = Literal["user", "assistant"]
 
 WIKI = ("wikih4ks", "wh")
@@ -103,7 +104,7 @@ def gpt_command(text: str, nick: str, chan: str) -> str:
 
     channick = (chan, nick)
     if channick not in gpt_messages_cache:
-        gpt_messages_cache[channick] = deque(maxlen=16)
+        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
 
     gpt_messages_cache[channick].append(Message(role="user", content=text))
     try:
@@ -129,7 +130,7 @@ def gpt_app(text: str, nick: str, chan: str) -> str:
 
     channick = (chan, nick)
     if channick not in gpt_messages_cache:
-        gpt_messages_cache[channick] = deque(maxlen=16)
+        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
 
     gpt_messages_cache[channick].append(
         Message(
@@ -441,29 +442,20 @@ def gpredict_command(bot, reply, text: str, chan: str, nick: str, conn) -> str |
     return f"<{target_nick}> {formatting.truncate_str(response, 350)}"
 
 
-@hook.command("gptwiki", autohelp=False)
-def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
-    """<text> - Create or edit a wiki page on demand from AI prompt"""
+def edit_wiki(bot, reply, chan: str, nick: str, prompt: str, history: Deque[Message] | list[Message]) -> str:
     user = bot.config.get_api_key("wiki_username")
-
-    channick = (chan, nick)
-    if channick not in gpt_messages_cache:
-        gpt_messages_cache[channick] = deque(maxlen=16)
-
-    gpt_messages_cache[channick].append(
+    history.append(
         Message(
             role="user",
-            content=text
+            content=prompt
             + "\nOutput the result as a mediawiki code block meant for a wiki page. Use <pre> for code blocks within"
             " the page and use only wiki markup. Do not explain, just show the code in a single markdown code block.",
         )
     )
     try:
-        response = get_completion(list(gpt_messages_cache[channick]))
+        response = get_completion(list(history))
     except requests.HTTPError as e:
         return f"Error: {e}"
-
-    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
 
     code_blocks = detect_code_blocks(response)
     if not code_blocks:
@@ -478,29 +470,33 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
     if match:
         title = match.group(1).strip()
     else:
-        # Ask AI for a title
-        response = get_completion(
-            list(gpt_messages_cache[channick])
-            + [
-                Message(
-                    role="user",
-                    content=(
-                        "What is the title of this page? Respond with a single line with the title, no explanation,"
-                        " just the answer."
-                    ),
-                )
-            ],
-        )
-        title = response.strip()
+        return "Error: No title found in the response."
 
     site = pywikibot.Site(url=WIKI_APIS[WIKI], user=user)
     page = pywikibot.Page(site, title)
 
     if page.exists():
         reply(f"Editing page at {page.full_url()} ...")
+        # Refrese the prompt to avoid the bot thinking it is a new page, give it the old page as a context
+        history[-1].content = (
+            f"Please edit the following page with the following content:\n{page.text}\n\n{wiki_text}\n"
+            + history[-1].content
+        )
+        try:
+            response = get_completion(list(history))
+        except requests.HTTPError as e:
+            return f"Error: {e}"
+        code_blocks = detect_code_blocks(response)
+        if not code_blocks:
+            return "No code block found in the response. Try .gptclear or see what happened with .gptpaste."
+
+        wiki_text = code_blocks[0].strip()
+        if not wiki_text:
+            return "Error: No text found in the response."
     else:
         reply(f"Creating page {page.full_url()} ...")
 
+    history.append(Message(role="assistant", content=response))
     page.text = wiki_text
     try:
         page.save("Edited by GPT bot from irc")
@@ -519,3 +515,20 @@ def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
         return f"Error: {e}"
 
     return search(WIKI, title, chan, nick)
+
+
+@hook.command("gptwiki", autohelp=False)
+def gptwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
+    """<text> - Create or edit a wiki page on demand from AI prompt"""
+    channick = (chan, nick)
+    if channick not in gpt_messages_cache:
+        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
+
+    return edit_wiki(bot, reply, chan, nick, text, gpt_messages_cache[channick])
+
+
+@hook.command("agiwiki", autohelp=False)
+def agiwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
+    """<text> - Create or edit a wiki page on demand from AI prompt"""
+    messages = generate_agi_history(conn, chan)
+    return edit_wiki(bot, reply, chan, nick, text, messages)
