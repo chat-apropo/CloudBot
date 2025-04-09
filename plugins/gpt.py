@@ -320,6 +320,7 @@ agi_messages_cache: Deque[tuple[float, str]] = deque(maxlen=AGI_HISTORY_LENGTH)
 
 def generate_agi_history(conn, chan: str) -> list[Message]:
     global agi_messages_cache
+    prefix = conn.config["command_prefix"]
 
     inner: list[tuple[RoleType, float, str]] = []
     i = 0
@@ -330,6 +331,9 @@ def generate_agi_history(conn, chan: str) -> list[Message]:
         else:
             mod_msg = msg
             fmt = "{}: {}"
+        # Skip bot commands
+        if mod_msg.startswith(prefix):
+            continue
         inner.append(("user", timestamp, fmt.format(name, mod_msg)))
         i += 1
         if i >= AGI_HISTORY_LENGTH:
