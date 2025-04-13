@@ -2,6 +2,7 @@ import re
 
 from cloudbot import hook
 from cloudbot.util import formatting
+from plugins.mock import get_latest_line
 
 correction_re = re.compile(
     r"^(?:[sS]/(?:((?:\\/|[^/])*?)(?<!\\)/((?:\\/|[^/])*?)(?:(?<!\\)/([igx]{,4}))?)\s*?;*?)(?:;\s*?[sS]/(?:((?:\\/|[^/])*?)(?<!\\)/((?:\\/|[^/])*?)(?:(?<!\\)/([igx]{,4}))?)\s*?;*?)*?$"
@@ -97,3 +98,24 @@ def correction(match, conn, nick, chan, message):
 
     else:
         return "No match"
+
+
+@hook.command("valware", autohelp=False)
+def valware(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
+    """<nick> - Alias for s/\\s+/but also unrealircd and/g"""
+    if not text:
+        return "Usage: valware <nick>"
+
+    nick = text.split()[0]
+
+    line = get_latest_line(text, conn, chan, nick)
+    if line is None:
+        return f"Nothing found in recent history for {nick}"
+
+    new = re.sub(
+        r"\s+",
+        " \x02but also unrealircd and\x02 ",
+        line,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+    return f"\x02{new}"

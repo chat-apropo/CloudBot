@@ -549,3 +549,71 @@ def agiwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
     """<text> - Create or edit a wiki page on demand from AI prompt"""
     messages = generate_agi_history(conn, chan)
     return edit_wiki(bot, reply, chan, nick, text, messages)
+
+
+@hook.command("vibeadd", "vibecreate", autohelp=False)
+def vibe(text: str, chan: str, nick: str) -> str:
+    """<name> <prompt> - Vibe create a new game"""
+    if not text.strip():
+        return "Usage: .vibeadd <name> <prompt>"
+
+    if len(text.split()) < 2:
+        return "Usage: .vibeadd <name> <prompt>"
+
+    api_key = bot.config.get_api_key("vibegames_api_key")
+    api_url = bot.config.get_api_key("vibegames_api_url")
+
+    name, prompt = text.split(maxsplit=1)
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    json_data = {
+        "content": prompt,
+    }
+
+    response = requests.post(f"{api_url}/api/ai/{name}", headers=headers, json=json_data)
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as e:
+        return f"Error: {e} - {response.text}"
+    response_json = response.json()
+    if response_json["status"] != "success":
+        return f"Error: {response_json['message']} - {response.text}"
+    return f"Created {name} at {api_url}{response_json['html_path']} with prompt: {prompt}"
+
+
+@hook.command("vibeedit", autohelp=False)
+def vibe_edit(text: str, chan: str, nick: str) -> str:
+    """<name> <prompt> - Vibe edit a game"""
+    if not text.strip():
+        return "Usage: .vibeedit <name> <prompt>"
+
+    if len(text.split()) < 2:
+        return "Usage: .vibeedit <name> <prompt>"
+
+    api_key = bot.config.get_api_key("vibegames_api_key")
+    api_url = bot.config.get_api_key("vibegames_api_url")
+
+    name, prompt = text.split(maxsplit=1)
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    json_data = {
+        "content": prompt,
+    }
+
+    response = requests.put(f"{api_url}/api/ai/{name}", headers=headers, json=json_data)
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as e:
+        return f"Error: {e} - {response.text}"
+    response_json = response.json()
+    if response_json["status"] != "success":
+        return f"Error: {response_json['message']} - {response.text}"
+    return f"Edited {name} at {api_url}{response_json['html_path']} with prompt: {prompt}"
