@@ -108,7 +108,7 @@ def valware(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
 
     nick = text.split()[0]
 
-    line = get_latest_line(text, conn, chan, nick)
+    line = get_latest_line(None, conn, chan, nick)
     if line is None:
         return f"Nothing found in recent history for {nick}"
 
