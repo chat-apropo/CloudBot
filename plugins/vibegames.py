@@ -75,6 +75,11 @@ class VibeClient:
         response = self.session.put(f"{self.api_url}/api/project/{name}/{path}", json={"content": content})
         return self._handle_response(response)
 
+    def delete(self, name: str) -> bool:
+        """Delete a game"""
+        response = self.session.delete(f"{self.api_url}/api/project/{name}")
+        return response.status_code == 200
+
     def search(self, name: str) -> list[VibeSearchResult]:
         """Search for a game"""
         response = self.session.get(f"{self.api_url}/api/games", params={"search_query": name, "sort_by": "hottest"})
@@ -158,3 +163,16 @@ def vibe_import(text: str, chan: str, nick: str) -> str:
     if response["status"] != "success":
         return f"Error: {response['message']} - {response['response']}"
     return f"Imported {name} at {response['url']}"
+
+
+@hook.command("vibedelete", autohelp=False)
+def vibe_delete(text: str, chan: str, nick: str) -> str:
+    """<name> - Vibe delete a game"""
+    if not text.strip():
+        return "Usage: .vibedelete <name>"
+
+    name = text.strip()
+    client = VibeClient()
+    if not client.delete(name):
+        return f"Error: {name} not found"
+    return f"Deleted {name}"
