@@ -88,6 +88,11 @@ class VibeClient:
         response_json = response.json()
         return response_json
 
+    def revert(self, name: str) -> VibeResponse | dict:
+        """Revert a game"""
+        response = self.session.get(f"{self.api_url}/api/revert_project/{name}")
+        return self._handle_response(response)
+
 
 @hook.command("vibegame", autohelp=False)
 def vibegame(text: str, chan: str, nick: str, reply) -> None | str:
@@ -176,3 +181,17 @@ def vibe_delete(text: str, chan: str, nick: str) -> str:
     if not client.delete(name):
         return f"Error: {name} not found"
     return f"Deleted {name}"
+
+
+@hook.command("viberollback", "viberevert", autohelp=False)
+def vibe_rollback(text: str, chan: str, nick: str) -> str:
+    """<name> - Vibe revert a game"""
+    if not text.strip():
+        return "Usage: .viberollback <name>"
+
+    name = text.strip()
+    client = VibeClient()
+    response = client.revert(name)
+    if response["status"] != "success":
+        return f"Error: {response['message']} - {response['response']}"
+    return f"Reverted {name} at {response['url']}"
