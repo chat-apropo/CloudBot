@@ -112,4 +112,4 @@ def valware(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
         line,
         flags=re.MULTILINE | re.IGNORECASE,
     )
-    return f"\x02{new}"
+    return formatting.truncate(f"\x02{new}", 420)
