@@ -63,9 +63,9 @@ ALIASES = {
     "image": ModelAliasPreset(id="stabilityai/stable-diffusion-xl-base-1.0").with_params(
         seed=lambda: random.randint(0, 10000)
     ),
-    "flux": ModelAliasPreset(id="black-forest-labs/flux.1-dev"),
-    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1").with_params(seed=lambda: random.randint(0, 10000)),
-    "waifu": ModelAliasPreset(id="cagliostrolab/animagine-xl-3.1+heavy")
+    "flux": ModelAliasPreset(id="black-forest-labs/FLUX.1-dev"),
+    "anime": ModelAliasPreset(id="cagliostrolab/animagine-xl-4.0").with_params(seed=lambda: random.randint(0, 10000)),
+    "waifu": ModelAliasPreset(id="cagliostrolab/animagine-xl-4.0+heavy")
     .with_params(seed=lambda: random.randint(0, 10000))
     .modify(lambda x: f"{x}, masterpiece, best quality, very aesthetic, absurdres"),
     "pixel": ModelAliasPreset(id="nerijs/pixel-art-xl").with_params(seed=lambda: random.randint(0, 10000)),

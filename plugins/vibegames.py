@@ -1,3 +1,4 @@
+import base64
 from typing import TypedDict
 
 import requests
@@ -69,10 +70,12 @@ class VibeClient:
         response = self.session.put(f"{self.api_url}/api/ai/{name}", json={"content": prompt})
         return self._handle_response(response)
 
-    def add(self, name: str, content: str) -> VibeResponse | dict:
+    def add(self, name: str, content: bytes, path: str = "index.html") -> VibeResponse | dict:
         """Import a game"""
-        path = "index.html"
-        response = self.session.put(f"{self.api_url}/api/project/{name}/{path}", json={"content": content})
+        text = base64.b64encode(content).decode("utf-8")
+        response = self.session.put(
+            f"{self.api_url}/api/project/{name}/{path}", json={"content": text, "encoding": "base64"}
+        )
         return self._handle_response(response)
 
     def delete(self, name: str) -> bool:
@@ -148,11 +151,8 @@ def vibe_edit(text: str, chan: str, nick: str) -> str:
 @hook.command("vibeimport", autohelp=False)
 def vibe_import(text: str, chan: str, nick: str) -> str:
     """<name> <url> - Vibe import a game from a URL"""
-    if not text.strip():
-        return "Usage: .vibeimport <name> <url>"
-
-    if len(text.split()) < 2:
-        return "Usage: .vibeimport <name> <url>"
+    if not text.strip() or len(text.split()) < 2:
+        return "Usage: .vibeimport <name>/[file/path] <url>"
 
     name, url, *_ = text.split()
     client = VibeClient()
@@ -160,11 +160,17 @@ def vibe_import(text: str, chan: str, nick: str) -> str:
     if response.status_code != 200:
         return f"Error: {response.status_code} - {response.text}"
 
-    content = response.text
+    # if has "/" we use it as a file path
+    if "/" in name:
+        name, path = name.split("/", 1)
+    else:
+        path = "index.html"
+
+    content = response.content
     if len(content) > 10 * 1024**2:
         return "Error: File too large"
 
-    response = client.add(name, content)
+    response = client.add(name, content, path)
     if response["status"] != "success":
         return f"Error: {response['message']} - {response['response']}"
     return f"Imported {name} at {response['url']}"
