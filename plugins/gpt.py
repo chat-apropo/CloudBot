@@ -16,7 +16,7 @@ from cloudbot.util import formatting
 from plugins.huggingface import FileIrcResponseWrapper
 from plugins.wikis import WIKI_APIS, search
 
-API_URL = "https://g4f.cloud.mattf.one/api/completions"
+API_URL = "https://g4f.h4ks.com/api/completions"
 MAX_SUMMARIZE_MESSAGES = 1000
 AGI_HISTORY_LENGTH = 50
 MAX_USER_HISTORY_LENGTH = 32
