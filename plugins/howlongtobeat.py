@@ -25,22 +25,17 @@ class Game:
 results_queue = Queue()
 
 
-URL = "https://howlongtobeat.com/api/search"
+URL = "https://howlongtobeat.com/api/seek/d4b2e330db04dbf3"
 GAME_URL = "https://howlongtobeat.com/game/{}"
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
-    "Referer": "https://howlongtobeat.com/?q=the%2520last%2520of%2520us",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "Referer": "https://howlongtobeat.com",
 }
 
 json_data = {
     "searchType": "games",
-    "searchTerms": [
-        "the",
-        "last",
-        "of",
-        "us",
-    ],
+    "searchTerms": ["metal gear"],
     "searchPage": 1,
     "size": 20,
     "searchOptions": {
@@ -49,24 +44,18 @@ json_data = {
             "platform": "",
             "sortCategory": "popular",
             "rangeCategory": "main",
-            "rangeTime": {
-                "min": 0,
-                "max": 0,
-            },
-            "gameplay": {
-                "perspective": "",
-                "flow": "",
-                "genre": "",
-            },
+            "rangeTime": {"min": None, "max": None},
+            "gameplay": {"perspective": "", "flow": "", "genre": "", "difficulty": ""},
+            "rangeYear": {"min": "", "max": ""},
             "modifier": "",
         },
-        "users": {
-            "sortCategory": "postcount",
-        },
+        "users": {"sortCategory": "postcount"},
+        "lists": {"sortCategory": "follows"},
         "filter": "",
         "sort": 0,
         "randomizer": 0,
     },
+    "useCache": True,
 }
 
 
