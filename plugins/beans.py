@@ -15,8 +15,8 @@ from cloudbot import hook
 from cloudbot.util import database
 
 # Regular expressions for bean commands
-bean_add_re = re.compile(r"^\+(\d+)\s+beans\s+to\s+(\S+)\s+.*$", re.IGNORECASE)
-bean_admin_add_re = re.compile(r"^\+\+(\d+)\s+beans\s+to\s+(\S+)\s+.*$", re.IGNORECASE)
+bean_add_re = re.compile(r"^\+(\d+)\s+beans?\s+to\s+(\S+)(?:\s+.*)?$", re.IGNORECASE)
+bean_admin_add_re = re.compile(r"^\+\+(\d+)\s+beans?\s+to\s+(\S+)(?:\s+.*)?$", re.IGNORECASE)
 
 # Database table for storing bean balances
 beans_table = Table(
