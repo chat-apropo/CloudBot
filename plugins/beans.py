@@ -91,7 +91,7 @@ def beans_cmd(text: str, nick: str, db) -> str:
         target = nick
 
     beans = get_beans(target, db)
-    return f"{target} has {beans:,} beans."
+    return f"🌟 {target} has 🫘 {beans:,} beans! 🌟"
 
 
 @hook.regex(bean_add_re)
@@ -102,11 +102,11 @@ def transfer_beans_cmd(match, nick: str, db, notice) -> str | None:
 
     # Prevent negative transfers
     if amount <= 0:
-        return "Amount must be positive."
+        return "🚫 Amount must be positive! 🚫"
 
     # Prevent self-transfers
     if nick.lower() == target.lower():
-        return "You can't transfer beans to yourself."
+        return "🤔 You can't transfer beans to yourself! 🤔"
 
     # Attempt the transfer
     success = transfer_beans(nick, target, amount, db)
@@ -114,16 +114,16 @@ def transfer_beans_cmd(match, nick: str, db, notice) -> str | None:
     if success:
         sender_beans = get_beans(nick, db)
         target_beans = get_beans(target, db)
-        return f"{nick} gave {amount} beans to {target}. {nick} now has {sender_beans} beans, and {target} has {target_beans} beans."
+        return f"🎉 {nick} gave 🫘 {amount} beans to {target}! 🎉 {nick} now has 🫘 {sender_beans} beans, and {target} has 🫘 {target_beans} beans!"
     else:
-        return f"You don't have enough beans for that transfer. You have {get_beans(nick, db)} beans."
+        return f"😢 You don't have enough beans for that transfer. You have 🫘 {get_beans(nick, db)} beans. 😢"
 
 
 @hook.regex(bean_admin_add_re)
 def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
     """<++amount beans to user> - Admin command to create beans and give them to a user."""
     if not any(has_permission(per) for per in ["op", "botcontrol"]):
-        notice("You don't have permission to use this command.")
+        notice("🚫 You don't have permission to use this command! 🚫")
         return None
 
     amount = int(match.group(1))
@@ -131,13 +131,13 @@ def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
 
     # Prevent negative amounts
     if amount <= 0:
-        return "Amount must be positive."
+        return "🚫 Amount must be positive! 🚫"
 
     # Add beans to target
     add_beans(target, amount, db)
     target_beans = get_beans(target, db)
 
-    return f"{nick} created {amount} beans and gave them to {target}. {target} now has {target_beans} beans."
+    return f"✨ {nick} created 🫘 {amount} beans and gave them to {target}! ✨ {target} now has 🫘 {target_beans} beans!"
 
 
 @hook.command("topbeans", autohelp=False)
@@ -148,7 +148,7 @@ def top_beans(db) -> str:
     results = db.execute(query).fetchall()
 
     if not results:
-        return "No one has any beans yet!"
+        return "😢 No one has any beans yet! 😢"
 
-    beans_list = [f"{i+1}. {row['nick']} ({row['beans']:,} beans)" for i, row in enumerate(results)]
-    return "Top Bean Holders: " + " | ".join(beans_list)
+    beans_list = [f"{i+1}. {row['nick']} 🫘 ({row['beans']:,} beans)" for i, row in enumerate(results)]
+    return "🏆 Top Bean Holders: " + " | ".join(beans_list)
