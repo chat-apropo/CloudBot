@@ -152,3 +152,13 @@ def top_beans(db) -> str:
 
     beans_list = [f"{i+1}. {row['nick']} 🫘 ({row['beans']:,} beans)" for i, row in enumerate(results)]
     return "🏆 Top Bean Holders: " + " | ".join(beans_list)
+
+
+@hook.command("totalbeans", autohelp=False)
+def total_beans(db) -> str:
+    """- Shows the total number of beans in circulation."""
+    query = select([sqlalchemy.func.sum(beans_table.c.beans).label("total_beans")])
+    result = db.execute(query).fetchone()
+
+    total_beans = result["total_beans"] if result["total_beans"] is not None else 0
+    return f"🌍 There are 🫘 {total_beans:,} beans in circulation! 🌍"
