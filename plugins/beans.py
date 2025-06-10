@@ -141,17 +141,35 @@ def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
 
 
 @hook.command("topbeans", autohelp=False)
-def top_beans(db) -> str:
-    """- Shows the top 10 users with the most beans."""
-    query = select([beans_table.c.nick, beans_table.c.beans]).order_by(sqlalchemy.desc(beans_table.c.beans)).limit(10)
+def top_beans(text: str, nick: str, chan: str, db, notice, message) -> str | None:
+    """[number] - Shows the top N users with the most beans (default is 10)."""
+    try:
+        top_n = int(text.strip()) if text else 10
+    except ValueError:
+        return "🚫 Please provide a valid number for the top users to display. 🚫"
 
+    response = _generate_top_beans_response(top_n, db)
+    if nick != chan and top_n > 10:
+        notice(f"📩 {nick}, check your DM for the top {top_n} bean holders!")
+        for line in response.splitlines():
+            message(line, nick)
+        return None
+
+    return response.replace("\n", " ")
+
+
+def _generate_top_beans_response(top_n: int, db) -> str:
+    """Helper function to generate the top beans response."""
+    query = (
+        select([beans_table.c.nick, beans_table.c.beans]).order_by(sqlalchemy.desc(beans_table.c.beans)).limit(top_n)
+    )
     results = db.execute(query).fetchall()
 
     if not results:
         return "😢 No one has any beans yet! 😢"
 
     beans_list = [f"{i+1}. {row['nick']} 🫘 ({row['beans']:,} beans)" for i, row in enumerate(results)]
-    return "🏆 Top Bean Holders: " + " | ".join(beans_list)
+    return f"🏆 Top {top_n} Bean Holders:\n" + "\n".join(beans_list)
 
 
 @hook.command("totalbeans", autohelp=False)
