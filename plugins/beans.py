@@ -140,24 +140,6 @@ def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
     return f"✨ {nick} created 🫘 {amount} beans and gave them to {target}! ✨ {target} now has 🫘 {target_beans} beans!"
 
 
-@hook.command("topbeans", autohelp=False)
-def top_beans(text: str, nick: str, chan: str, db, notice, message) -> str | None:
-    """[number] - Shows the top N users with the most beans (default is 10)."""
-    try:
-        top_n = int(text.strip()) if text else 10
-    except ValueError:
-        return "🚫 Please provide a valid number for the top users to display. 🚫"
-
-    response = _generate_top_beans_response(top_n, db)
-    if nick != chan and top_n > 10:
-        notice(f"📩 {nick}, check your DM for the top {top_n} bean holders!")
-        for line in response.splitlines():
-            message(line, nick)
-        return None
-
-    return response.replace("\n", " ")
-
-
 def _generate_top_beans_response(top_n: int, db) -> str:
     """Helper function to generate the top beans response."""
     query = (
@@ -169,7 +151,26 @@ def _generate_top_beans_response(top_n: int, db) -> str:
         return "😢 No one has any beans yet! 😢"
 
     beans_list = [f"{i+1}. {row['nick']} 🫘 ({row['beans']:,} beans)" for i, row in enumerate(results)]
-    return f"🏆 Top {top_n} Bean Holders:\n" + "\n".join(beans_list)
+    return f"🏆 Top {top_n} Bean Holders: " + "\n".join(beans_list)
+
+
+@hook.command("topbeans", autohelp=False)
+def top_beans(text: str, nick: str, chan: str, db, notice, message) -> str | None:
+    """[number] - Shows the top N users with the most beans (default is 10)."""
+    try:
+        top_n = int(text.strip()) if text else 10
+    except ValueError:
+        return "🚫 Please provide a valid number for the top users to display. 🚫"
+
+    response = _generate_top_beans_response(top_n, db)
+    if top_n <= 10:
+        return response.replace("\n", " ")
+
+    notice(f"📩 {nick}, check your DM for the top {top_n} bean holders!")
+    # Loop 10 by 10 splits to generate chunks
+    for i in range(0, len(response.splitlines()), 10):
+        chunk = " ".join(response.splitlines()[i : i + 10])
+        message(chunk, nick)
 
 
 @hook.command("totalbeans", autohelp=False)
