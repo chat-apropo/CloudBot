@@ -1,3 +1,4 @@
+import random
 import re
 
 import sqlalchemy
@@ -181,3 +182,58 @@ def total_beans(db) -> str:
 
     total_beans = result["total_beans"] if result["total_beans"] is not None else 0
     return f"🌍 There are 🫘 {total_beans:,} beans in circulation! 🌍"
+
+
+@hook.command("slots", autohelp=False)
+def slots(text: str, nick: str, chan: str, db, conn) -> str:
+    """[bet] - Play the slot machine! Default bet is 5 beans. Win big or lose it all!"""
+    emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇"]
+    default_bet = 3
+    max_prize = 100
+
+    # Determine bet amount
+    try:
+        bet = int(text.strip()) if text else default_bet
+    except ValueError:
+        return "Please provide a valid number for your bet."
+
+    if bet < default_bet:
+        return f"Minimum bet is {default_bet} beans."
+
+    user_beans = get_beans(nick, db)
+    if user_beans < bet:
+        return f"You don't have enough beans to bet {bet}. You only have {user_beans} beans."
+
+    bot_beans = get_beans(conn.nick, db)
+    if bot_beans < max_prize:
+        return "The bot doesn't have enough beans to pay out prizes right now. Try again later!"
+
+    # Deduct bet from user and add to bot's wallet
+    set_beans(nick, user_beans - bet, db)
+    set_beans(conn.nick, bot_beans + bet, db)
+
+    # Generate expected and actual slot values
+    expected_slots = [random.choice(emojis) for _ in range(3)]
+    actual_slots = [random.choice(emojis) for _ in range(3)]
+    result = " | ".join(f"{e} {a}" for e, a in zip(expected_slots, actual_slots))
+
+    # Check for win conditions
+    matches = sum(e == a for e, a in zip(expected_slots, actual_slots))
+    if matches == 3:  # All three match
+        prize = (bet // default_bet) * max_prize
+        if prize > bot_beans:
+            prize = bot_beans  # Cap prize to bot's available beans
+        set_beans(nick, get_beans(nick, db) + prize, db)
+        set_beans(conn.nick, bot_beans - prize, db)
+        return f"{result} JACKPOT! You won {prize:,} beans!"
+    elif matches == 2:  # Two match
+        prize = (bet // default_bet) * (max_prize // 2)
+        if prize > bot_beans:
+            prize = bot_beans  # Cap prize to bot's available beans
+        set_beans(nick, get_beans(nick, db) + prize, db)
+        set_beans(conn.nick, bot_beans - prize, db)
+        return f"{result} You won {prize:,} beans!"
+    elif matches == 1:  # One match
+        return f"{result} Almost there! Keep trying! You lost {bet:,} beans."
+    else:  # No match
+        return f"{result} Better luck next time! You lost {bet:,} beans."
