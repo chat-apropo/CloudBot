@@ -545,8 +545,10 @@ def trivia_cmd(text: str, nick: str, db, conn) -> str | list[str]:
 
 
 @hook.regex(re.compile(r"^\s*(\S+)\s*$", re.I))
-def track_trivia_answers(match, event, db, conn) -> str | None:
+def track_trivia_answers(match, event, db, conn, chan) -> str | None:
     if event.type is EventType.action:
+        return
+    if not chan.startswith("#"):
         return
     answer = match.group(1).strip()
     if not answer:
