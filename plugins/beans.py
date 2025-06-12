@@ -1,8 +1,10 @@
 import math
 import random
 import re
+from time import time
 
 import sqlalchemy
+from cachetools import TTLCache
 from sqlalchemy import (
     Column,
     Integer,
@@ -185,12 +187,21 @@ def total_beans(db) -> str:
     return f"🌍 There are 🫘 {total_beans:,} beans in circulation! 🌍"
 
 
+slot_cooldown_cache = TTLCache(maxsize=1000, ttl=3600 * 24 * 2)  # Cache for slot cooldowns
+
+
 @hook.command("slots", autohelp=False)
-def slots(text: str, nick: str, chan: str, db, conn) -> str:
+def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
     """[bet] - Play the slot machine! Default bet is 5 beans. Win big or lose it all!"""
     emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇", "🍊", "🍓", "🍍", "💎"]
     default_bet = 3
     max_prize = 100
+
+    # Cooldown settings
+    attempts_per_cooldown = 3
+    cooldown_time_base = 15  # seconds
+    cooldown_time_multiplier = 1.5
+    cooldown_bet_multiplier = 2
 
     # Determine bet amount
     try:
@@ -201,12 +212,64 @@ def slots(text: str, nick: str, chan: str, db, conn) -> str:
     if bet < default_bet:
         return f"Minimum bet is {default_bet} beans."
 
+    bet_multiplier = bet / default_bet
+
+    # Check cooldown
+    current_time = math.floor(time())
+    if nick not in slot_cooldown_cache:
+        slot_cooldown_cache[nick] = {
+            "remaining_plays": attempts_per_cooldown,
+            "cooldown_until": 0,
+            "accumulated_bet": default_bet,
+        }
+
+    cooldown_entry = slot_cooldown_cache[nick]
+
+    wait_time = cooldown_entry["cooldown_until"] - current_time
+    cooldown_msg = f"⏳ You need to wait {wait_time} seconds before playing again. Increase your bet to {cooldown_entry['accumulated_bet']} to play now. ⏳"
+    if wait_time > 0 and bet < cooldown_entry["accumulated_bet"]:
+        return cooldown_msg
+
+    # Update cooldown cache
+    if cooldown_entry["remaining_plays"] > 0:
+        slot_cooldown_cache[nick]["remaining_plays"] -= 1
+    else:
+        # User increased bet, accept it
+        if bet > cooldown_entry["accumulated_bet"] and wait_time > 0:
+            slot_cooldown_cache[nick] = {
+                "remaining_plays": attempts_per_cooldown - 1,
+                "cooldown_until": cooldown_entry["cooldown_until"],
+                "accumulated_bet": cooldown_entry["accumulated_bet"],
+            }
+        # User did not increase bet, apply new cooldown
+        else:
+            cooldown_time = int(
+                cooldown_time_base * (cooldown_time_multiplier ** (cooldown_entry["accumulated_bet"]) / default_bet)
+            )
+            slot_cooldown_cache[nick] = {
+                "remaining_plays": attempts_per_cooldown,
+                "cooldown_until": current_time + cooldown_time,
+                "accumulated_bet": cooldown_entry["accumulated_bet"] * cooldown_bet_multiplier,
+            }
+            return f"⏳ You entered a cooldown! You can play again in {cooldown_time:.2f} seconds. Increase your bet to {slot_cooldown_cache[nick]['accumulated_bet']} beans to play now ⏳"
+
+    cooldown_entry = slot_cooldown_cache[nick]
+    reply(f"{cooldown_entry['accumulated_bet']=}")
+    reply(f"{cooldown_entry['remaining_plays']=}")
+    reply(f"{cooldown_entry['cooldown_until']=}")
+    is_cooldown = wait_time > 0
+
+    if is_cooldown:
+        bet_multiplier = max(
+            min(bet / default_bet, math.ceil((2 * bet - cooldown_entry["accumulated_bet"]) / default_bet)), 1
+        )
+
     user_beans = get_beans(nick, db)
     if user_beans < bet:
         return f"You don't have enough beans to bet {bet}. You only have {user_beans} beans."
 
     bot_beans = get_beans(conn.nick, db)
-    max_prize = math.ceil((bet / default_bet) * max_prize)
+    max_prize = math.ceil(bet_multiplier * max_prize)
     if bot_beans < max_prize:
         return (
             f"The bot doesn't have enough beans to pay out a potential prize of {max_prize:,} beans. Try again later!"
@@ -226,12 +289,12 @@ def slots(text: str, nick: str, chan: str, db, conn) -> str:
     if matches == 3:
         if not transfer_beans(conn.nick, nick, max_prize, db):
             return "The bot doesn't have enough beans to pay out the jackpot. Try again later!"
-        return f"{result} JACKPOT! You won {max_prize:,} beans!"
+        return f"{result} JACKPOT! You won {max_prize:,} beans!" + (" ⏳" if is_cooldown else "")
     elif matches == 2:
-        prize = math.ceil((bet / default_bet) * (max_prize / 2))
+        prize = math.ceil(bet_multiplier * (max_prize / 2))
         if not transfer_beans(conn.nick, nick, prize, db):
             return "The bot doesn't have enough beans to pay out your prize. Try again later!"
-        return f"{result} You won {prize:,} beans!"
+        return f"{result} You won {prize:,} beans!" + (" ⏳" if is_cooldown else "")
     elif matches == 1:
         return f"{result} Almost there! Keep trying! You lost {bet:,} beans."
     else:
