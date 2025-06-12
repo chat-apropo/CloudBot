@@ -177,13 +177,17 @@ def top_beans(text: str, nick: str, chan: str, db, notice, message) -> str | Non
         message(chunk, nick)
 
 
+def get_total_beans(db) -> int:
+    """Get the total number of beans in circulation."""
+    query = select([sqlalchemy.func.sum(beans_table.c.beans).label("total_beans")])
+    result = db.execute(query).fetchone()
+    return result["total_beans"] if result["total_beans"] is not None else 0
+
+
 @hook.command("totalbeans", autohelp=False)
 def total_beans(db) -> str:
     """- Shows the total number of beans in circulation."""
-    query = select([sqlalchemy.func.sum(beans_table.c.beans).label("total_beans")])
-    result = db.execute(query).fetchone()
-
-    total_beans = result["total_beans"] if result["total_beans"] is not None else 0
+    total_beans = get_total_beans(db)
     return f"🌍 There are 🫘 {total_beans:,} beans in circulation! 🌍"
 
 
@@ -194,25 +198,36 @@ slot_cooldown_cache = TTLCache(maxsize=1000, ttl=3600 * 24 * 2)  # Cache for slo
 def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
     """[bet] - Play the slot machine! Default bet is 5 beans. Win big or lose it all!"""
     emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇", "🍊", "🍓", "🍍", "💎"]
-    default_bet = 3
+
+    total_beans = get_total_beans(db)
+    bot_beans = get_beans(conn.nick, db)
+    bot_market_share = bot_beans / total_beans if total_beans > 0 else 0
+
+    min_bet = 3
+    if bot_market_share > 0.3:
+        min_bet = 2
+    if bot_market_share > 0.5:
+        min_bet = 1
+
     max_prize = 100
 
     # Cooldown settings
     attempts_per_cooldown = 3
     cooldown_time_base = 15  # seconds
-    cooldown_time_multiplier = 1.5
     cooldown_bet_multiplier = 2
+    # Is also multiplied by the bet multiplier
+    cooldown_time_multiplier = 1.5
 
     # Determine bet amount
     try:
-        bet = int(text.strip()) if text else default_bet
+        bet = int(text.strip()) if text else min_bet
     except ValueError:
         return "Please provide a valid number for your bet."
 
-    if bet < default_bet:
-        return f"Minimum bet is {default_bet} beans."
+    if bet < min_bet:
+        return f"Minimum bet is {min_bet} beans."
 
-    bet_multiplier = bet / default_bet
+    bet_multiplier = bet / min_bet
 
     # Check cooldown
     current_time = math.floor(time())
@@ -220,7 +235,7 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
         slot_cooldown_cache[nick] = {
             "remaining_plays": attempts_per_cooldown,
             "cooldown_until": 0,
-            "accumulated_bet": default_bet,
+            "accumulated_bet": min_bet,
         }
 
     cooldown_entry = slot_cooldown_cache[nick]
@@ -235,7 +250,7 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
         slot_cooldown_cache[nick] = {
             "remaining_plays": cooldown_entry["remaining_plays"],
             "cooldown_until": cooldown_entry["cooldown_until"],
-            "accumulated_bet": default_bet,
+            "accumulated_bet": min_bet,
         }
         cooldown_entry = slot_cooldown_cache[nick]
 
@@ -252,8 +267,8 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
             }
         # User did not increase bet, apply new cooldown
         else:
-            cooldown_time = int(
-                cooldown_time_base * (cooldown_time_multiplier ** (cooldown_entry["accumulated_bet"]) / default_bet)
+            cooldown_time = round(
+                cooldown_time_base * cooldown_time_multiplier * cooldown_entry["accumulated_bet"] / min_bet
             )
             slot_cooldown_cache[nick] = {
                 "remaining_plays": attempts_per_cooldown,
@@ -263,16 +278,18 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
             return f"⏳ You entered a cooldown! You can play again in {cooldown_time:.2f} seconds. Increase your bet to {slot_cooldown_cache[nick]['accumulated_bet']} beans to play now ⏳"
 
     cooldown_entry = slot_cooldown_cache[nick]
+    # reply(f"{cooldown_entry['accumulated_bet']=}")
+    # reply(f"{cooldown_entry['remaining_plays']=}")
+    # reply(f"{cooldown_entry['cooldown_until']=}")
     is_cooldown = wait_time > 0
 
     if is_cooldown:
-        bet_multiplier = max(min(bet / default_bet, (bet) / (cooldown_entry["accumulated_bet"])), 1)
+        bet_multiplier = max(min(bet / min_bet, (bet) / (cooldown_entry["accumulated_bet"])), 1)
 
     user_beans = get_beans(nick, db)
     if user_beans < bet:
         return f"You don't have enough beans to bet {bet}. You only have {user_beans} beans."
 
-    bot_beans = get_beans(conn.nick, db)
     max_prize = math.ceil(bet_multiplier * max_prize)
     if bot_beans < max_prize:
         return (
