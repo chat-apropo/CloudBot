@@ -230,6 +230,15 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
     if wait_time > 0 and bet < cooldown_entry["accumulated_bet"]:
         return cooldown_msg
 
+    # If not in cooldown, reset accumulated bet
+    if wait_time <= 0:
+        slot_cooldown_cache[nick] = {
+            "remaining_plays": cooldown_entry["remaining_plays"],
+            "cooldown_until": cooldown_entry["cooldown_until"],
+            "accumulated_bet": default_bet,
+        }
+        cooldown_entry = slot_cooldown_cache[nick]
+
     # Update cooldown cache
     if cooldown_entry["remaining_plays"] > 0:
         slot_cooldown_cache[nick]["remaining_plays"] -= 1
@@ -254,15 +263,10 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
             return f"⏳ You entered a cooldown! You can play again in {cooldown_time:.2f} seconds. Increase your bet to {slot_cooldown_cache[nick]['accumulated_bet']} beans to play now ⏳"
 
     cooldown_entry = slot_cooldown_cache[nick]
-    reply(f"{cooldown_entry['accumulated_bet']=}")
-    reply(f"{cooldown_entry['remaining_plays']=}")
-    reply(f"{cooldown_entry['cooldown_until']=}")
     is_cooldown = wait_time > 0
 
     if is_cooldown:
-        bet_multiplier = max(
-            min(bet / default_bet, math.ceil((2 * bet - cooldown_entry["accumulated_bet"]) / default_bet)), 1
-        )
+        bet_multiplier = max(min(bet / default_bet, (bet) / (cooldown_entry["accumulated_bet"])), 1)
 
     user_beans = get_beans(nick, db)
     if user_beans < bet:
