@@ -188,7 +188,7 @@ def total_beans(db) -> str:
 @hook.command("slots", autohelp=False)
 def slots(text: str, nick: str, chan: str, db, conn) -> str:
     """[bet] - Play the slot machine! Default bet is 5 beans. Win big or lose it all!"""
-    emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇"]
+    emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇", "🍊", "🍓", "🍍", "💎"]
     default_bet = 3
     max_prize = 100
 
