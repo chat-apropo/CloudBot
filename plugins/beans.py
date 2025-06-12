@@ -1,6 +1,8 @@
 import math
 import random
 import re
+import time
+from datetime import datetime
 from time import time
 
 import sqlalchemy
@@ -16,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.sql.base import Executable
 
 from cloudbot import hook
+from cloudbot.event import EventType
 from cloudbot.util import database
 
 # Regular expressions for bean commands
@@ -29,6 +32,18 @@ beans_table = Table(
     Column("nick", String),
     Column("beans", Integer),
     PrimaryKeyConstraint("nick"),
+)
+
+# Database table for storing trivia questions
+trivia_table = Table(
+    "trivia",
+    database.metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("timestamp", sqlalchemy.DateTime),
+    Column("creator", String),
+    Column("question", String),
+    Column("answer", String),
+    Column("prize", Integer),
 )
 
 
@@ -241,7 +256,7 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
     cooldown_entry = slot_cooldown_cache[nick]
 
     wait_time = cooldown_entry["cooldown_until"] - current_time
-    cooldown_msg = f"⏳ You need to wait {wait_time} seconds before playing again. Increase your bet to {cooldown_entry['accumulated_bet']} to play now. ⏳"
+    cooldown_msg = f"⏳ You need to wait {wait_time} seconds before playing again. Increase your bet to {cooldown_entry['accumulated_bet']} to play now. �����"
     if wait_time > 0 and bet < cooldown_entry["accumulated_bet"]:
         return cooldown_msg
 
@@ -320,3 +335,233 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
         return f"{result} Almost there! Keep trying! You lost {bet:,} beans."
     else:
         return f"{result} Better luck next time! You lost {bet:,} beans."
+
+
+# Trivia functions
+def add_trivia(creator: str, question: str, answer: str, prize: int, db) -> int:
+    """Add a new trivia question and return its ID."""
+    creator = creator.lower()
+    query = trivia_table.insert().values(
+        timestamp=datetime.now(), creator=creator, question=question, answer=answer, prize=prize
+    )
+    result = db.execute(query)
+    db.commit()
+    return result.inserted_primary_key[0]
+
+
+def get_trivia(trivia_id: int, db):
+    """Get a trivia question by ID."""
+    query = select([trivia_table]).where(trivia_table.c.id == trivia_id)
+    return db.execute(query).fetchone()
+
+
+def get_trivia_by_answer(answer: str, db):
+    """Get a trivia question by its answer."""
+    answer = answer.lower()
+    query = select([trivia_table]).where(trivia_table.c.answer == answer)
+    return db.execute(query).fetchone()
+
+
+def get_latest_user_trivia(creator: str, db):
+    """Get the latest trivia question created by a user."""
+    creator = creator.lower()
+    query = (
+        select([trivia_table])
+        .where(trivia_table.c.creator == creator)
+        .order_by(sqlalchemy.desc(trivia_table.c.timestamp))
+        .limit(1)
+    )
+    return db.execute(query).fetchone()
+
+
+def get_latest_trivias(limit: int, db):
+    """Get the latest trivia questions."""
+    query = select([trivia_table]).order_by(sqlalchemy.desc(trivia_table.c.timestamp)).limit(limit)
+    return db.execute(query).fetchall()
+
+
+def get_user_trivias(creator: str, db):
+    """Get all trivia questions created by a user."""
+    creator = creator.lower()
+    query = (
+        select([trivia_table])
+        .where(trivia_table.c.creator == creator)
+        .order_by(sqlalchemy.desc(trivia_table.c.timestamp))
+    )
+    return db.execute(query).fetchall()
+
+
+def delete_trivia(trivia_id: int, db) -> bool:
+    """Delete a trivia question by ID. Returns True if successful."""
+    query = trivia_table.delete().where(trivia_table.c.id == trivia_id)
+    result = db.execute(query)
+    db.commit()
+    return result.rowcount > 0
+
+
+@hook.command("trivia")
+def trivia_cmd(text: str, nick: str, db, conn) -> str | list[str]:
+    """
+    .trivia add <prize_amount> <question> -> <answer> - Add a new trivia question
+    .trivia question [id] - Show a trivia question (latest by default)
+    .trivia list - Show latest 3 trivia questions
+    .trivia user <nick> - Show trivias from a user
+    .trivia delete <id> - Delete your trivia question
+    .trivia help - Show help information
+    """
+    if not text:
+        return trivia_cmd("help", nick, db, conn)
+
+    parts = text.strip().split(None, 1)
+    subcmd = parts[0].lower()
+
+    if subcmd == "help":
+        return [
+            "🎮 Trivia Commands 🎮",
+            "> .trivia add <prize_amount> <question> -> <answer> - Add a new trivia question with prize",
+            "> .trivia question [id] - Show a trivia question (your latest by default)",
+            "> .trivia list - Show latest 3 trivia questions",
+            "> .trivia user <nick> - Show trivias created by a user",
+            "> .trivia delete <id> - Delete your trivia question and get refunded",
+            "> .trivia help - Show this help information",
+            "",
+            "Notes:",
+            "- The prize is paid in beans from your account to the bot",
+            "- Answers must be a single alphanumeric word",
+            "- Use -> to separate your question from the answer",
+        ]
+
+    if len(parts) < 2 and subcmd not in ["list", "help"]:
+        return "❌ Missing arguments. Use '.trivia help' for usage information."
+
+    if subcmd == "add":
+        match = re.match(r"(\d+)\s+(.+?)\s+->\s+(\w+)$", parts[1])
+        if not match:
+            return "❌ Invalid format. Use: .trivia add <prize_amount> <question> -> <answer>"
+
+        prize = int(match.group(1))
+        question = match.group(2).strip()
+        answer = match.group(3).strip()
+
+        # Check if prize is positive
+        if prize <= 0:
+            return "❌ Prize must be a positive number of beans."
+
+        # Check if answer is alphanumeric
+        if not answer.isalnum():
+            return "❌ Answer must contain only letters and numbers."
+
+        # Check if user has enough beans
+        user_beans = get_beans(nick, db)
+        if user_beans < prize:
+            return f"❌ You don't have enough beans. You have {user_beans}, but the prize is {prize}."
+
+        # Transfer beans to the bot
+        if not transfer_beans(nick, conn.nick, prize, db):
+            return "❌ Failed to transfer beans. Please try again."
+
+        # Add the trivia question
+        trivia_id = add_trivia(nick, question, answer, prize, db)
+
+        return f"✅ Trivia question #{trivia_id} added with a prize of 🫘 {prize} beans!"
+
+    elif subcmd == "question":
+        if len(parts) == 1:
+            # Show latest question by the user
+            trivia = get_latest_user_trivia(nick, db)
+            if not trivia:
+                return "❌ You haven't created any trivia questions yet."
+        else:
+            try:
+                trivia_id = int(parts[1])
+                trivia = get_trivia(trivia_id, db)
+                if not trivia:
+                    return f"❌ Trivia question #{trivia_id} not found."
+            except ValueError:
+                return "❌ Invalid trivia ID. Please provide a number."
+
+        return [
+            f"📝 Trivia #{trivia['id']} (created by {trivia['creator']})",
+            f"Question: {trivia['question']}",
+            f"Prize: 🫘 {trivia['prize']} beans",
+        ]
+
+    elif subcmd == "list":
+        trivias = get_latest_trivias(3, db)
+        if not trivias:
+            return "❌ No trivia questions found."
+
+        result = ["🎯 Latest Trivia Questions 🎯"]
+        for t in trivias:
+            result.append(f"#{t['id']}: \"{t['question']}\" - Prize: 🫘 {t['prize']} beans (by {t['creator']})")
+
+        return result
+
+    elif subcmd == "user":
+        target = parts[1].strip()
+        trivias = get_user_trivias(target, db)
+        if not trivias:
+            return f"❌ No trivia questions found for user {target}."
+
+        result = [f"🧩 Trivia Questions by {target} 🧩"]
+        for t in trivias:
+            result.append(f"#{t['id']}: \"{t['question']}\" - Prize: 🫘 {t['prize']} beans")
+
+        return result
+
+    elif subcmd == "delete":
+        try:
+            trivia_id = int(parts[1])
+            trivia = get_trivia(trivia_id, db)
+
+            if not trivia:
+                return f"❌ Trivia question #{trivia_id} not found."
+
+            if trivia["creator"].lower() != nick.lower():
+                return "❌ You can only delete your own trivia questions."
+
+            # Check if the bot can pay back the prize
+            bot_beans = get_beans(conn.nick, db)
+            if bot_beans < trivia["prize"]:
+                return "❌ The bot doesn't have enough beans to refund your prize. Try again later."
+
+            # Transfer beans back to the creator
+            if not transfer_beans(conn.nick, nick, trivia["prize"], db):
+                return "❌ Failed to refund beans. Please try again later."
+
+            # Delete the trivia question
+            if delete_trivia(trivia_id, db):
+                return f"✅ Trivia question #{trivia_id} deleted. You've been refunded 🫘 {trivia['prize']} beans."
+            else:
+                # If delete fails, we need to return the beans to the bot
+                transfer_beans(nick, conn.nick, trivia["prize"], db)
+                return "❌ Failed to delete trivia question. Please try again."
+
+        except ValueError:
+            return "❌ Invalid trivia ID. Please provide a number."
+
+    else:
+        return f"❌ Unknown subcommand: {subcmd}. Use '.trivia help' for usage information."
+
+
+@hook.regex(re.compile(r"^\s*(\S+)\s*$", re.I))
+def track_trivia_answers(match, event, db, conn) -> str | None:
+    if event.type is EventType.action:
+        return
+    answer = match.group(1).strip()
+    if not answer:
+        return
+    trivia = get_trivia_by_answer(answer, db)
+    if not trivia:
+        return
+
+    # Transfer beans to the winner
+    if not transfer_beans(conn.nick, event.nick, trivia["prize"], db):
+        return "❌ The bot doesn't have enough beans to pay out the prize. Try again later!"
+
+    # Delete the trivia question after answering
+    delete_trivia(trivia["id"], db)
+    return (
+        f"🎉 {event.nick} answered correctly! The answer was '{trivia['answer']}'. "
+        f"You won 🫘 {trivia['prize']} beans! 🎉"
+    )
