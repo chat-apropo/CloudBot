@@ -213,8 +213,8 @@ def slots(text: str, nick: str, chan: str, db, conn) -> str:
         )
 
     # Deduct bet from user and add to bot's wallet
-    set_beans(nick, user_beans - bet, db)
-    set_beans(conn.nick, bot_beans + bet, db)
+    if not transfer_beans(nick, conn.nick, bet, db):
+        return f"You don't have enough beans to play! You need at least {bet:,} beans to play the slots."
 
     # Generate expected and actual slot values
     expected_slots = [random.choice(emojis) for _ in range(3)]
@@ -223,16 +223,16 @@ def slots(text: str, nick: str, chan: str, db, conn) -> str:
 
     # Check for win conditions
     matches = sum(e == a for e, a in zip(expected_slots, actual_slots))
-    if matches == 3:  # All three match
-        set_beans(nick, get_beans(nick, db) + max_prize, db)
-        set_beans(conn.nick, get_beans(conn.nick, db) - max_prize, db)
+    if matches == 3:
+        if not transfer_beans(conn.nick, nick, max_prize, db):
+            return "The bot doesn't have enough beans to pay out the jackpot. Try again later!"
         return f"{result} JACKPOT! You won {max_prize:,} beans!"
-    elif matches == 2:  # Two match
+    elif matches == 2:
         prize = math.ceil((bet / default_bet) * (max_prize / 2))
-        set_beans(nick, get_beans(nick, db) + prize, db)
-        set_beans(conn.nick, get_beans(conn.nick, db) - prize, db)
+        if not transfer_beans(conn.nick, nick, prize, db):
+            return "The bot doesn't have enough beans to pay out your prize. Try again later!"
         return f"{result} You won {prize:,} beans!"
-    elif matches == 1:  # One match
+    elif matches == 1:
         return f"{result} Almost there! Keep trying! You lost {bet:,} beans."
-    else:  # No match
+    else:
         return f"{result} Better luck next time! You lost {bet:,} beans."
