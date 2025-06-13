@@ -46,6 +46,18 @@ trivia_table = Table(
     Column("prize", Integer),
 )
 
+# Database table for storing trivia bets
+trivia_bets_table = Table(
+    "trivia_bets",
+    database.metadata,
+    Column("creator", String),
+    Column("trivia_id", Integer),
+    Column("bet_amount", Integer),
+    Column("winner", String),
+    Column("timestamp", sqlalchemy.DateTime),
+    PrimaryKeyConstraint("creator", "trivia_id"),
+)
+
 
 def get_beans(nick: str, db) -> int:
     """Get the current bean count for a user."""
@@ -181,7 +193,7 @@ def _generate_top_beans_response(top_n: int, db) -> str:
     return f"🏆 Top {top_n} Bean Holders: " + "\n".join(beans_list)
 
 
-@hook.command("topbeans", autohelp=False)
+@hook.command("topbeans", "beanstats", autohelp=False)
 def top_beans(text: str, nick: str, chan: str, db, notice, message) -> str | None:
     """[number] - Shows the top N users with the most beans (default is 10)."""
     try:
@@ -220,7 +232,7 @@ slot_cooldown_cache = TTLCache(maxsize=1000, ttl=3600 * 24 * 2)  # Cache for slo
 @hook.command("slots", autohelp=False)
 def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
     """[bet] - Play the slot machine! Default bet is 5 beans. Win big or lose it all!"""
-    emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇", "🍊", "🍓", "🍍", "💎"]
+    emojis = ["🍒", "🍋", "🍉", "⭐", "🔔", "🍇", "🍊", "🍓"]
 
     total_beans = get_total_beans(db)
     bot_beans = get_beans(conn.nick, db)
@@ -345,6 +357,133 @@ def slots(text: str, nick: str, chan: str, reply, db, conn) -> str:
         return f"{result} Better luck next time! You lost {bet:,} beans."
 
 
+# Trivia bet functions
+def add_trivia_bet(creator: str, trivia_id: int, bet_amount: int, winner: str, db) -> bool:
+    """Add a bet for a trivia question. Returns True if successful."""
+    creator = creator.lower()
+    winner = winner.lower()
+
+    # Add or update the bet
+    clause = (trivia_bets_table.c.creator == creator) & (trivia_bets_table.c.trivia_id == trivia_id)
+    existing_bet = db.execute(select([trivia_bets_table]).where(clause)).fetchone()
+
+    if existing_bet:
+        query = (
+            trivia_bets_table.update()
+            .values(bet_amount=bet_amount, winner=winner, timestamp=datetime.now())
+            .where(clause)
+        )
+    else:
+        query = trivia_bets_table.insert().values(
+            creator=creator,
+            trivia_id=trivia_id,
+            bet_amount=bet_amount,
+            winner=winner,
+            timestamp=datetime.now(),
+        )
+
+    db.execute(query)
+    db.commit()
+    return True
+
+
+def get_trivia_bets(trivia_id: int, db):
+    """Get all bets for a specific trivia."""
+    query = select([trivia_bets_table]).where(trivia_bets_table.c.trivia_id == trivia_id)
+    return db.execute(query).fetchall()
+
+
+def get_user_bets(nick: str, db):
+    """Get all bets placed by a user."""
+    nick = nick.lower()
+    query = (
+        select([trivia_bets_table])
+        .where(trivia_bets_table.c.creator == nick)
+        .order_by(sqlalchemy.desc(trivia_bets_table.c.timestamp))
+    )
+    return db.execute(query).fetchall()
+
+
+def get_recent_trivia_bets(db):
+    """Get the most recent trivia bets, grouped by trivia ID."""
+    query = (
+        select(
+            [
+                trivia_bets_table.c.trivia_id,
+                sqlalchemy.func.sum(trivia_bets_table.c.bet_amount).label("total_bet_amount"),
+                sqlalchemy.func.count().label("bet_count"),
+            ]
+        )
+        .group_by(trivia_bets_table.c.trivia_id)
+        .order_by(sqlalchemy.desc(sqlalchemy.func.max(trivia_bets_table.c.timestamp)))
+        .limit(3)
+    )
+    return db.execute(query).fetchall()
+
+
+def delete_trivia_bets(trivia_id: int, db, conn) -> None:
+    """Delete all bets for a specific trivia and refund the betters."""
+    bets = get_trivia_bets(trivia_id, db)
+
+    for bet in bets:
+        # Refund the bet amount to the creator
+        if not transfer_beans(conn.nick, bet["creator"], bet["bet_amount"], db):
+            # If we can't refund, log or handle the error
+            print(f"Failed to refund {bet['bet_amount']} beans to {bet['creator']}")
+
+    # Delete all bets for this trivia
+    query = trivia_bets_table.delete().where(trivia_bets_table.c.trivia_id == trivia_id)
+    db.execute(query)
+    db.commit()
+
+
+def handle_trivia_win(trivia_id: int, winner_nick: str, db, conn) -> tuple[int, int, list[str]]:
+    """
+    Handle bets when a trivia is won.
+    Returns a tuple with (number of winners, total payout amount, unpaid winners list).
+    """
+    winner_nick = winner_nick.lower()
+    bets = get_trivia_bets(trivia_id, db)
+
+    if not bets:
+        return 0, 0, []
+
+    # Calculate total bet pool
+    total_bet_amount = sum(bet["bet_amount"] for bet in bets)
+
+    # Find winning bets (those who bet on the correct winner)
+    winning_bets = [bet for bet in bets if bet["winner"].lower() == winner_nick]
+
+    if not winning_bets:
+        # No winners, all bets are lost
+        query = trivia_bets_table.delete().where(trivia_bets_table.c.trivia_id == trivia_id)
+        db.execute(query)
+        db.commit()
+        return 0, total_bet_amount, []
+
+    # Calculate total amount bet by winners
+    total_winning_bet_amount = sum(bet["bet_amount"] for bet in winning_bets)
+    unpaid_winners = []
+
+    # Distribute winnings proportionally to bet amounts
+    for bet in winning_bets:
+        # Calculate the proportion of the total pool this winner gets
+        proportion = bet["bet_amount"] / total_winning_bet_amount
+        payout = math.floor(total_bet_amount * proportion)
+
+        # Add the winnings to the better's account
+        if not transfer_beans(conn.nick, bet["creator"], payout, db):
+            # If we can't pay, add to unpaid list
+            unpaid_winners.append(bet["creator"])
+
+    # Delete all bets for this trivia
+    query = trivia_bets_table.delete().where(trivia_bets_table.c.trivia_id == trivia_id)
+    db.execute(query)
+    db.commit()
+
+    return len(winning_bets), total_bet_amount, unpaid_winners
+
+
 # Trivia functions
 def add_trivia(creator: str, question: str, answer: str, prize: int, db) -> int:
     """Add a new trivia question and return its ID."""
@@ -399,8 +538,11 @@ def get_user_trivias(creator: str, db):
     return db.execute(query).fetchall()
 
 
-def delete_trivia(trivia_id: int, db) -> bool:
-    """Delete a trivia question by ID. Returns True if successful."""
+def delete_trivia(trivia_id: int, db, conn) -> bool:
+    """Delete a trivia question by ID and refund any bets. Returns True if successful."""
+    # First handle any bets on this trivia
+    delete_trivia_bets(trivia_id, db, conn)
+
     query = trivia_table.delete().where(trivia_table.c.id == trivia_id)
     result = db.execute(query)
     db.commit()
@@ -538,7 +680,7 @@ def trivia_cmd(text: str, nick: str, db, conn) -> str | list[str]:
                 return "❌ Failed to refund beans. Please try again later."
 
             # Delete the trivia question
-            if delete_trivia(trivia_id, db):
+            if delete_trivia(trivia_id, db, conn):
                 return f"✅ Trivia question #{trivia_id} deleted. You've been refunded 🫘 {trivia['prize']} beans."
             else:
                 # If delete fails, we need to return the beans to the bot
@@ -553,7 +695,7 @@ def trivia_cmd(text: str, nick: str, db, conn) -> str | list[str]:
 
 
 @hook.regex(re.compile(r"^\s*(\S+)\s*$", re.I))
-def track_trivia_answers(match, event, db, conn, chan) -> str | None:
+def track_trivia_answers(match, event, db, conn, chan) -> list[str] | None | str:
     if event.type is EventType.action:
         return
     if not chan.startswith("#"):
@@ -569,9 +711,207 @@ def track_trivia_answers(match, event, db, conn, chan) -> str | None:
     if not transfer_beans(conn.nick, event.nick, trivia["prize"], db):
         return "❌ The bot doesn't have enough beans to pay out the prize. Try again later!"
 
+    # Handle any bets on this trivia
+    winners_count, total_bet_amount, unpaid_winners = handle_trivia_win(trivia["id"], event.nick, db, conn)
+
     # Delete the trivia question after answering
-    delete_trivia(trivia["id"], db)
-    return (
+    delete_trivia(trivia["id"], db, conn)
+
+    result = [
         f"🎉 {event.nick} answered correctly! The answer was '{trivia['answer']}'. "
         f"You won 🫘 {trivia['prize']} beans! 🎉"
+    ]
+
+    if winners_count > 0:
+        result.append(
+            f" Additionally, {winners_count} bettors who bet on {event.nick} split "
+            f"a pool of 🫘 {total_bet_amount} beans!"
+        )
+
+        if unpaid_winners:
+            result.append(
+                f" Sorry, couldn't pay {len(unpaid_winners)} winners due to insufficient bot beans: "
+                f"{', '.join(unpaid_winners[:3])}"
+                + (f" and {len(unpaid_winners) - 3} more" if len(unpaid_winners) > 3 else "")
+            )
+
+    return result
+
+
+@hook.command("bets", "bet")
+def bet_cmd(text: str, nick: str, db, conn, event) -> str | list[str]:
+    """
+    .bet trivia <trivia_id> place <amount> bean(s) on <winner> - Bet on who will win a trivia
+    .bet trivia list - Show recent trivias with bets
+    .bet trivia <trivia_id> - Show bets for a specific trivia
+    .bet trivia user <user> - Show bets placed by a user
+    .bet help - Show help information
+    """
+    if not text:
+        return bet_cmd("help", nick, db, conn, event)
+
+    parts = text.strip().split(None, 6)
+
+    if parts[0].lower() == "help":
+        return [
+            "🎲 Betting Commands 🎲",
+            "> .bet trivia <trivia_id> place <amount> bean(s) on <winner> - Bet on who will win a trivia",
+            "> .bet trivia list - Show recent trivias with bets",
+            "> .bet trivia <trivia_id> - Show bets for a specific trivia",
+            "> .bet trivia user <user> - Show bets placed by a user",
+            "> .bet help - Show this help information",
+            "",
+            "Notes:",
+            "- Winner must be a valid IRC nickname",
+            "- You can't bet on trivias you created",
+            "- Only one bet per trivia is allowed",
+            "- If you win, you get a share of the total bet pool proportional to your bet amount",
+        ]
+
+    if len(parts) < 2:
+        return "❌ Missing arguments. Use '.bet help' for usage information."
+
+    subcmd = parts[0].lower()
+
+    if subcmd != "trivia":
+        return f"❌ Unknown subcommand: {subcmd}. Use '.bet help' for usage information."
+
+    # Handle viewing bets
+    if len(parts) == 2 and parts[1].lower() == "list":
+        # Show recent trivias with bets
+        recent_bets = get_recent_trivia_bets(db)
+        if not recent_bets:
+            return "❌ No active bets found."
+
+        result = ["🎯 Recent Trivias with Bets 🎯"]
+
+        for bet_summary in recent_bets:
+            trivia = get_trivia(bet_summary["trivia_id"], db)
+            if not trivia:
+                continue
+
+            result.append(
+                f"Trivia #{bet_summary['trivia_id']}: \"{trivia['question'][:30]}...\" - "
+                f"{bet_summary['bet_count']} bets, 🫘 {bet_summary['total_bet_amount']} beans total"
+            )
+
+        return result
+
+    # Handle viewing bets for a specific trivia
+    if len(parts) == 2 and parts[1].isdigit():
+        trivia_id = int(parts[1])
+        trivia = get_trivia(trivia_id, db)
+
+        if not trivia:
+            return f"❌ Trivia question #{trivia_id} not found."
+
+        bets = get_trivia_bets(trivia_id, db)
+        if not bets:
+            return f"❌ No bets found for Trivia #{trivia_id}."
+
+        total_bet_amount = sum(bet["bet_amount"] for bet in bets)
+        result = [
+            f"🎯 Bets for Trivia #{trivia_id} 🎯",
+            f"Question: {trivia['question']}",
+            f"Total bet amount: 🫘 {total_bet_amount} beans",
+            "Recent bets:",
+        ]
+
+        # Sort bets by timestamp, most recent first
+        sorted_bets = sorted(bets, key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min, reverse=True)
+
+        for bet in sorted_bets[:3]:  # Limit to 3 recent bets
+            result.append(f"{bet['creator']} bet 🫘 {bet['bet_amount']} beans on {bet['winner']}")
+
+        if len(sorted_bets) > 3:
+            result.append(f"...and {len(sorted_bets) - 3} more bets")
+
+        return result
+
+    # Handle viewing user bets
+    if len(parts) >= 3 and parts[1].lower() == "user":
+        target_user = parts[2].strip()
+        user_bets = get_user_bets(target_user, db)
+
+        if not user_bets:
+            return f"❌ No bets found for user {target_user}."
+
+        total_bet_amount = sum(bet["bet_amount"] for bet in user_bets)
+        result = [f"🎯 Bets placed by {target_user} 🎯", f"Total bet amount: 🫘 {total_bet_amount} beans", "Recent bets:"]
+
+        for bet in user_bets[:3]:  # Limit to 3 recent bets
+            trivia = get_trivia(bet["trivia_id"], db)
+            question = trivia["question"] if trivia else "Unknown"
+            result.append(
+                f"Trivia #{bet['trivia_id']}: {question[:30]}... - "
+                f"Bet 🫘 {bet['bet_amount']} beans on {bet['winner']}"
+            )
+
+        return result
+
+    # Now handle placing a bet
+    if len(parts) < 7:
+        return "❌ Missing arguments. Use '.bet help' for usage information."
+
+    if (
+        parts[2].lower() not in ["place", "add"]
+        or parts[4].lower() not in ["bean", "beans"]
+        or parts[5].lower() != "on"
+    ):
+        return "❌ Invalid syntax. Use '.bet trivia <trivia_id> place <amount> bean(s) on <winner>'."
+
+    trivia_id_str = parts[1]
+    bet_amount_str = parts[3]
+    winner = parts[6]
+
+    try:
+        trivia_id = int(trivia_id_str)
+        bet_amount = int(bet_amount_str)
+    except ValueError:
+        return "❌ Trivia ID and bet amount must be numbers."
+
+    if bet_amount <= 0:
+        return "❌ Bet amount must be positive."
+
+    # Check if trivia exists
+    trivia = get_trivia(trivia_id, db)
+    if not trivia:
+        return f"❌ Trivia question #{trivia_id} not found."
+
+    # Check if user is trying to set winner to the trivia creator
+    if winner.lower() == trivia["creator"].lower():
+        return "❌ You can't bet on the creator of the trivia."
+
+    # Check if user already placed a bet on this trivia
+    existing_bet = db.execute(
+        select([trivia_bets_table]).where(
+            (trivia_bets_table.c.creator == nick.lower()) & (trivia_bets_table.c.trivia_id == trivia_id)
+        )
+    ).fetchone()
+
+    if existing_bet:
+        return f"❌ You already bet 🫘 {existing_bet['bet_amount']} beans on {existing_bet['winner']} for this trivia. Only one bet per trivia is allowed."
+
+    # Check if user has enough beans
+    user_beans = get_beans(nick, db)
+    if user_beans < bet_amount:
+        return f"❌ You don't have enough beans. You have 🫘 {user_beans} beans."
+
+    # Deduct beans from user
+    if not transfer_beans(nick, conn.nick, bet_amount, db):
+        return "❌ Failed to transfer beans. Please try again."
+
+    # Place the bet
+    timestamp = datetime.now()
+    db.execute(
+        trivia_bets_table.insert().values(
+            trivia_id=trivia_id,
+            creator=nick.lower(),
+            winner=winner.lower(),
+            bet_amount=bet_amount,
+            timestamp=timestamp,
+        )
     )
+    db.commit()
+
+    return f"✅ You bet 🫘 {bet_amount} beans on {winner} to win trivia #{trivia_id}."
