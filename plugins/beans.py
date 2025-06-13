@@ -114,7 +114,7 @@ def beans_cmd(text: str, nick: str, db) -> str:
 
 
 @hook.regex(bean_add_re)
-def transfer_beans_cmd(match, nick: str, db, notice) -> str | None:
+def transfer_beans_cmd(match, nick: str, db, notice, event) -> str | None:
     """<+amount beans to user> - Transfer beans to another user."""
     amount = int(match.group(1))
     target = match.group(2)
@@ -122,6 +122,10 @@ def transfer_beans_cmd(match, nick: str, db, notice) -> str | None:
     # Prevent negative transfers
     if amount <= 0:
         return "🚫 Amount must be positive! 🚫"
+
+    # Check if target is a valid nick
+    if not event.is_nick_valid(target.lower()):
+        return "🚫 Invalid user! Please provide a valid IRC nickname. 🚫"
 
     # Prevent self-transfers
     if nick.lower() == target.lower():
@@ -139,7 +143,7 @@ def transfer_beans_cmd(match, nick: str, db, notice) -> str | None:
 
 
 @hook.regex(bean_admin_add_re)
-def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
+def admin_add_beans(match, nick: str, db, notice, has_permission, event) -> str | None:
     """<++amount beans to user> - Admin command to create beans and give them to a user."""
     if not any(has_permission(per) for per in ["op", "botcontrol"]):
         notice("🚫 You don't have permission to use this command! 🚫")
@@ -147,6 +151,10 @@ def admin_add_beans(match, nick: str, db, notice, has_permission) -> str | None:
 
     amount = int(match.group(1))
     target = match.group(2)
+
+    # Check if target is a valid nick
+    if not event.is_nick_valid(target.lower()):
+        return "🚫 Invalid user! Please provide a valid IRC nickname. 🚫"
 
     # Prevent negative amounts
     if amount <= 0:
@@ -342,7 +350,7 @@ def add_trivia(creator: str, question: str, answer: str, prize: int, db) -> int:
     """Add a new trivia question and return its ID."""
     creator = creator.lower()
     query = trivia_table.insert().values(
-        timestamp=datetime.now(), creator=creator, question=question, answer=answer, prize=prize
+        timestamp=datetime.now(), creator=creator, question=question, answer=answer.lower(), prize=prize
     )
     result = db.execute(query)
     db.commit()
@@ -441,7 +449,7 @@ def trivia_cmd(text: str, nick: str, db, conn) -> str | list[str]:
 
         prize = int(match.group(1))
         question = match.group(2).strip()
-        answer = match.group(3).strip()
+        answer = match.group(3).strip().lower()
 
         # Check if prize is positive
         if prize <= 0:
