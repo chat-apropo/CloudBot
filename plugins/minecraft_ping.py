@@ -1,13 +1,12 @@
 import socket
 
 # TODO(linuxdaemon): Implement bedrock support
-from mcstatus import JavaServer as MinecraftServer
-from mcstatus.status_response import JavaStatusResponse
+from mcstatus import MinecraftServer
 
 from cloudbot import hook
 from cloudbot.util import colors
 
-DEFAULT_SERVER = "minecraft.dot.org.es"
+DEFAULT_SERVER = "mc.h4ks.com"
 
 mc_colors = [
     ("\xa7f", "\x0300"),
@@ -48,7 +47,7 @@ def mcping(text):
         return str(e)
 
     try:
-        s: JavaStatusResponse = server.status()
+        s = server.status()
     except socket.gaierror:
         return "Invalid hostname"
     except socket.timeout:
@@ -60,7 +59,7 @@ def mcping(text):
     except (OSError, ValueError) as e:
         return f"Error pinging server: {e}"
 
-    motd = s.motd.to_minecraft()
+    motd = s.description
 
     description = format_colors(" ".join(motd.split()))
 
@@ -68,15 +67,15 @@ def mcping(text):
         "{}$(clear) - $(bold){}$(clear) - $(bold){:.1f}ms$(clear) - $(bold){}/{}$(clear) players"
     )
 
-    return output_format.format(
-        description, s.version.name, s.latency, s.players.online, s.players.max
-    ).replace("\n", colors.parse("$(clear) - "))
+    return output_format.format(description, s.version.name, s.latency, s.players.online, s.players.max).replace(
+        "\n", colors.parse("$(clear) - ")
+    )
 
 
 @hook.command("mc", autohelp=False)
 def d_mcp():
     "Information about our minecraft server"
-    return mcping(DEFAULT_SERVER)
+    return [f"Minecraft server at {DEFAULT_SERVER}", f"MOTD: {mcping(DEFAULT_SERVER)}"]
 
 
 @hook.command("mcping", "mcp")
