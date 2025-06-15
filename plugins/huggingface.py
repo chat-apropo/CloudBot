@@ -166,7 +166,7 @@ class FileIrcResponseWrapper(IrcResponseWrapper):
 
     @staticmethod
     def upload_file(file, bin) -> str:
-        default_filebin = "https://filebin.cloud.mattf.one"
+        default_filebin = "https://s.h4ks.com"
         filebin = os.environ.get("FILEBIN_URL", default_filebin)
         response = requests.post(
             f"{filebin}/api/",
