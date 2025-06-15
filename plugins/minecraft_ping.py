@@ -1,7 +1,7 @@
 import socket
 
 # TODO(linuxdaemon): Implement bedrock support
-from mcstatus import MinecraftServer
+from mcstatus import JavaServer as MinecraftServer
 
 from cloudbot import hook
 from cloudbot.util import colors
@@ -75,7 +75,10 @@ def mcping(text):
 @hook.command("mc", autohelp=False)
 def d_mcp():
     "Information about our minecraft server"
-    return [f"Minecraft server at {DEFAULT_SERVER}", f"MOTD: {mcping(DEFAULT_SERVER)}"]
+    return [
+        f"Minecraft server at {DEFAULT_SERVER}",
+        mcping(DEFAULT_SERVER),
+    ]
 
 
 @hook.command("mcping", "mcp")
