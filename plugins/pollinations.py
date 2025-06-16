@@ -1,3 +1,4 @@
+import base64
 import re
 import tempfile
 from collections import deque
@@ -77,12 +78,16 @@ class PollinationsClient:
         response.raise_for_status()
         return response
 
-    def generate_audio(self, prompt: str, voice: str | None = None) -> requests.Response:
-        url = f"{TEXT_API}/{prompt}?model=openai-audio"
-        if voice:
-            url = f"{url}&voice={voice}"
-        response = self.session.get(url, stream=True)
-        response.raise_for_status()
+    def generate_audio(self, messages: list[dict], voice: str | None = None) -> requests.Response:
+        url = f"{TEXT_API}/openai"
+        data = {
+            "model": "openai-audio",
+            "modalities": ["text", "audio"],
+            "audio": {"voice": voice or "alloy", "format": "mp3"},
+            "messages": messages,
+            "private": False,
+        }
+        response = self.session.post(url, json=data, stream=True)
         return response
 
     def generate_text_openai(self, messages: list[dict], model: str | None = None) -> dict:
@@ -178,23 +183,32 @@ def plimage_command(text: str, nick: str, chan: str) -> str:
 @hook.command("plaudio")
 def plaudio_command(text: str, nick: str, chan: str) -> str:
     """<[voice] prompt> - Generate audio from text using Pollinations.AI. Use '.plaudio list' to see available voices."""
+    global pollinations_messages_cache
     if text.strip().lower() == "list":
         return "Available voices: " + ", ".join(VOICES)
 
     voice, prompt = parse_args(text, VOICES)
 
-    try:
-        client = get_client()
-        response = client.generate_audio(prompt, voice)
-        with tempfile.NamedTemporaryFile(suffix=".mp3") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-            f.flush()
-            audio_url = FileIrcResponseWrapper.upload_file(f.name, chan or nick)
-        return f"Audio for '{prompt}': {audio_url}"
-    except Exception as e:
-        return f"Error generating audio: {e}"
+    channick = (chan, nick)
+    if channick not in pollinations_messages_cache:
+        pollinations_messages_cache[channick] = deque(maxlen=MAX_HISTORY_LENGTH)
+
+    client = get_client()
+    messages = [msg.as_dict() for msg in pollinations_messages_cache[channick]]
+    messages.append(Message(role="user", content=prompt).as_dict())
+
+    audio_response = client.generate_audio(messages, voice)
+    if audio_response.status_code != 200:
+        return f"Error generating audio: {audio_response.text}"
+
+    audio_json = audio_response.json()
+    audio_b64 = audio_json["choices"][0]["message"]["audio"]["data"]
+    audio_bytes = base64.b64decode(audio_b64)
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        f.write(audio_bytes)
+        f.flush()
+        audio_url = FileIrcResponseWrapper.upload_file(f.name, chan or nick)
+    return f"Audio for '{prompt}': {audio_url}"
 
 
 def process_text_response(response_text: str, nick: str, chan: str, messages: Deque[Message]) -> str:
@@ -285,7 +299,7 @@ def plapp_command(text: str, nick: str, chan: str) -> str:
         return f"Error generating web app: {e}"
 
 
-@hook.command("plpaste", autohelp=False)
+@hook.command("pollipaste", autohelp=False)
 def plpaste_command(nick: str, chan: str, text: str) -> str:
     """[nick] - Pastes the Pollinations conversation history with nick if specified."""
     global pollinations_messages_cache
@@ -302,3 +316,14 @@ def plpaste_command(nick: str, chan: str, text: str) -> str:
             f"{nick}'s Pollinations conversation in {chan}",
         )
     return f"No conversation history for {nick}. Start a conversation with .pltext or .plapp."
+
+
+@hook.command("plclear", autohelp=False)
+def plclear_command(nick: str, chan: str) -> str:
+    """Clear Pollinations conversation history for the current user."""
+    global pollinations_messages_cache
+    channick = (chan, nick)
+    if channick in pollinations_messages_cache:
+        del pollinations_messages_cache[channick]
+        return f"Cleared conversation history for {nick} in {chan}."
+    return f"No conversation history to clear for {nick} in {chan}."
