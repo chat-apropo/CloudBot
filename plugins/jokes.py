@@ -10,11 +10,7 @@ joke_lines = {}
 def load_joke_file(path: Path) -> List[str]:
     """Loads all the lines from a file, excluding blanks and lines that have been 'commented out'."""
     with path.open(encoding="utf-8") as f:
-        return [
-            line.strip()
-            for line in f
-            if line.strip() and not line.startswith("//")
-        ]
+        return [line.strip() for line in f if line.strip() and not line.startswith("//")]
 
 
 @hook.on_start()
@@ -38,10 +34,12 @@ def load_jokes(bot):
         joke_lines[file_path.stem] = load_joke_file(file_path)
 
 
-@hook.command()
+@hook.command("yomomma", "yourmother", "yomumma", "yomama", "yomommy", "urmum", autohelp=False)
 def yomomma(text, nick, conn, is_nick_valid):
     """<nick> - Tells a yo momma joke to <nick>."""
     target = text.strip()
+    if not target:
+        target = nick
     if not is_nick_valid(target) or target.lower() == conn.nick.lower():
         target = nick
     joke = random.choice(joke_lines["yo_momma"]).lower()
@@ -95,11 +93,7 @@ def boobies(text):
     out = text.strip()
     out = out.replace("o", boob).replace("O", boob).replace("0", boob)
     if out == text.strip():
-        return (
-            "Sorry I couldn't turn anything in '{}' into boobs for you.".format(
-                out
-            )
-        )
+        return "Sorry I couldn't turn anything in '{}' into boobs for you.".format(out)
     return out
 
 
@@ -119,9 +113,7 @@ def awesome(text, is_nick_valid):
     if not is_nick_valid(target):
         return f"Sorry I can't tell {target} how awesome they are."
     link = f"http://{target}.is-awesome.cool/"
-    return "{}: I am blown away by your recent awesome action(s). Please read \x02{}\x02".format(
-        target, link
-    )
+    return "{}: I am blown away by your recent awesome action(s). Please read \x02{}\x02".format(target, link)
 
 
 @hook.command(autohelp=False)
