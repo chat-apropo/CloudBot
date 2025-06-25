@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import lru_cache
 from typing import Iterable, Mapping, Match, Optional, Union
@@ -156,6 +157,9 @@ def get_video_info(client: Client, video_url: str | None = None, video_id: str |
                 subtitles = None
 
     except TranscriptsDisabled:
+        subtitles = None
+    except Exception as e:
+        logging.exception("Error fetching YouTube transcript for %s: %s", video_id, e)
         subtitles = None
 
     if subtitles:
