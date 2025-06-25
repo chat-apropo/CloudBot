@@ -9,6 +9,7 @@ from typing import Deque, List, Literal
 
 import pywikibot
 import requests
+from markitdown import MarkItDown
 
 from cloudbot import hook
 from cloudbot.bot import bot
@@ -551,3 +552,39 @@ def agiwiki(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | st
     return edit_wiki(bot, reply, chan, nick, text, messages)
 
 
+@hook.command("gptsummarize", "gptsum", "gpts", autohelp=False)
+def gptsummarize(bot, reply, text: str, chan: str, nick: str, conn) -> list[str] | str:
+    """<url> - Summarizes the contents of the given url. Can also be youtube urls or anything supported by https://github.com/microsoft/markitdown"""
+    global gpt_messages_cache
+    if not text.strip():
+        return "Error: You must provide a url to summarize."
+
+    md = MarkItDown()
+    try:
+        result = md.convert(text)
+    except Exception as e:
+        return f"Error: {e}"
+    if not result.markdown:
+        return "Error: Failed to read and convert the source. Make sure it is a supported url"
+
+    prompt = f"Please briefly summarize the contents of the following text:\n{result.markdown}\n\n"
+    channick = (chan, nick)
+    if channick not in gpt_messages_cache:
+        gpt_messages_cache[channick] = deque(maxlen=MAX_USER_HISTORY_LENGTH)
+    gpt_messages_cache[channick].append(Message(role="user", content=prompt))
+    try:
+        response = get_completion(list(gpt_messages_cache[channick]))
+    except requests.HTTPError as e:
+        return f"Error: {e}"
+
+    gpt_messages_cache[channick].append(Message(role="assistant", content=response))
+
+    truncated = f"Summary: {formatting.truncate_str(response, 350)}"
+    if len(truncated) < len(response):
+        paste_url = upload_responses(
+            nick,
+            list(gpt_messages_cache[channick]),
+            f"{nick}'s GPT conversation in {chan}",
+        )
+        return f"{truncated} (full response: {paste_url})"
+    return truncated

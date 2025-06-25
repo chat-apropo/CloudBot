@@ -8,7 +8,7 @@ certifi==2024.2.2
 chardet==4.0.0
 charset-normalizer==2.0.12
 cleverwrap==0.3.0.2
-click==7.1.2
+click==8.2.1
 colorama==0.4.4
 colorful==0.5.4
 decorator==5.1.1
@@ -25,7 +25,7 @@ googlemaps==4.10.0
 #greenlet==1.0.0
 idna==2.10
 imgurpython==1.1.7
-isodate==0.6.0
+isodate == 0.6.1
 isort==5.8.0
 joblib==1.0.1
 lazy-object-proxy==1.6.0
@@ -63,10 +63,10 @@ youtube-search==2.1.0
 python-magic==0.4.27
 PyGithub==2.4.0
 python-youtube==0.9.5
-youtube-transcript-api==0.6.2
 streetview==0.0.11
 pypdf==4.3.1
 pyproj==3.7.0
 curl-cffi==0.7.3
 pywikibot==10.0.0
 humanfriendly==10.0
+markitdown[all]==0.1.2

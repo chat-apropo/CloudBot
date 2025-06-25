@@ -11,6 +11,8 @@ RUN \
 COPY . /app
 RUN \
   pip install --no-cache-dir -r requirements.txt && \
-  pip install --no-cache-dir -r my_requirements.txt
+  pip install --no-cache-dir -r my_requirements.txt && \
+  # Hack fix for youtube_transcript_api
+  pip install youtube_transcript_api==1.1.0
 
 CMD ["python", "-m", "cloudbot"]

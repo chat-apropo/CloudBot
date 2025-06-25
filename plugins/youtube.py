@@ -140,8 +140,9 @@ def get_video_info(client: Client, video_url: str | None = None, video_id: str |
     }
 
     prefered_languages = ["en"]
+    ytt_api = YouTubeTranscriptApi()
     try:
-        transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcripts = ytt_api.list_transcripts(video_id)
         try:
             subtitles = transcripts.find_transcript(prefered_languages).fetch()
         except NoTranscriptFound:
@@ -158,7 +159,7 @@ def get_video_info(client: Client, video_url: str | None = None, video_id: str |
         subtitles = None
 
     if subtitles:
-        for part in subtitles:
+        for part in subtitles.to_raw_data():
             video_info["transcript"] += part["text"] + " "
 
     return video_info
@@ -347,7 +348,7 @@ def youtube_url(match: Match[str]) -> str:
     time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"\x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
-        420,
+        400,
     )
 
 
@@ -363,7 +364,7 @@ def youtube_next(text: str, nick: str, reply) -> str:
     time = timeformat.format_time(int(isodate.parse_duration(result["duration"]).total_seconds()), simple=True)
     return truncate(
         f"{url}  -  \x02{result['title']}\x02, \x02duration:\x02 {time} - {result['transcript']}",
-        420,
+        400,
     )
 
 
