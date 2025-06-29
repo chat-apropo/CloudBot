@@ -15,7 +15,7 @@ You have a few options for getting the bot, you can:
 
 ## Installing CloudBot
 
-Firstly, CloudBot will only run on **Python 3.6 or higher**
+Firstly, CloudBot will only run on **Python 3.10 or higher**
 
 To install CloudBot on *nix (linux, etc), see [here](docs/installing/nix.md)
 
@@ -29,7 +29,8 @@ Before you run the bot, rename `config.default.json` to `config.json` and edit i
 Once you have installed the required dependencies and renamed the config file, you can run the bot! Make sure you are in the correct folder and run the following command:
 
 ```
-python3 -m cloudbot
+uv sync
+uv python3 -m cloudbot
 ```
 
 ## Getting help with CloudBot
