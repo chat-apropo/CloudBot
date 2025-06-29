@@ -1,3 +1,119 @@
+[project]
+name = ""
+version = "0.0.1"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "aiohttp==3.8.3",
+    "aiosignal==1.2.0",
+    "anyio==3.6.1",
+    "astroid==3.1.0",
+    "async-timeout==4.0.2",
+    "asyncio-dgram==2.1.2",
+    "attrs==21.2.0",
+    "beautifulsoup4==4.10.0",
+    "brotli==1.0.9",
+    "bs4==0.0.1",
+    "cachetools==5.0.0",
+    "certifi==2024.2.2",
+    "chardet==4.0.0",
+    "charset-normalizer==2.0.12",
+    "chartlyrics>=0.1.5",
+    "cleverwrap==0.3.0.2",
+    "click==8.2.1",
+    "colorama==0.4.6",
+    "colorful==0.5.4",
+    "curl-cffi>=0.11.4",
+    "decorator==5.1.1",
+    "dict-cc-py==3.1.0",
+    "dnspython==2.4.2",
+    "duckduckpy==0.2",
+    "ety==1.3.3",
+    "fake-useragent==0.1.11",
+    "feedparser==6.0.8",
+    "forecastiopy==0.22",
+    "frozenlist==1.3.1",
+    "future==0.18.2",
+    "fuzzywuzzy==0.18.0",
+    "gazpacho==1.1",
+    "geoip2==5.1.0",
+    "google-play-scraper==1.2.2",
+    "google-transliteration-api==1.0.3",
+    "googlemaps==4.10.0",
+    "greenlet==3.0.3",
+    "h11==0.12.0",
+    "httpcore==0.15.0",
+    "httpx==0.23.0",
+    "humanfriendly==10.0",
+    "idna==2.10",
+    "imgurpython==1.1.7",
+    "isodate==0.6.1",
+    "isort==5.8.0",
+    "joblib==1.0.1",
+    "koo-api==0.0.3",
+    "lazy-object-proxy==1.6.0",
+    "lxml==4.9.1",
+    "markitdown>=0.1.2",
+    "mccabe==0.6.1",
+    "mcstatus==12.0.1",
+    "microdata==0.8.0",
+    "multidict==5.2.0",
+    "mutagen==1.45.1",
+    "mwparserfromhell==0.6.4",
+    "natsort==8.1.0",
+    "newsapi-python==0.2.6",
+    "nltk==3.6.6",
+    "numpy==2.2.6",
+    "oauthlib==3.1.0",
+    "opencv-python==4.6.0.66",
+    "orjson==3.10.3",
+    "pillow==9.2.0",
+    "psutil==5.8.0",
+    "py-irclib==0.3.0",
+    "py-open-weather==0.1.3",
+    "pycryptodomex==3.15.0",
+    "pydantic==1.10.2",
+    "pydub==0.25.1",
+    "pyenchant==3.2.2",
+    "pygithub==2.4.0",
+    "pymediawiki==0.7.1",
+    "pyocr==0.8.3",
+    "pyowm==3.3.0",
+    "pypdf==4.3.1",
+    "pyproj==3.7.0",
+    "pysocks==1.7.1",
+    "python-levenshtein==0.12.2",
+    "python-magic==0.4.27",
+    "python-youtube==0.9.5",
+    "pytz==2024.1",
+    "pywikibot==10.0.0",
+    "regex==2022.3.2",
+    "requests==2.32.2",
+    "requests-oauthlib==1.3.0",
+    "revchatgpt==6.8.6",
+    "rfc3986==1.5.0",
+    "rotten-tomatoes-scraper==1.4.0",
+    "sgmllib3k==1.0.0",
+    "six==1.15.0",
+    "sniffio==1.2.0",
+    "soupsieve==2.2.1",
+    "sqlalchemy==1.4.27",
+    "streetview==0.0.11",
+    "thefuzz==0.19.0",
+    "toml==0.10.2",
+    "tqdm==4.60.0",
+    "treelib==1.6.1",
+    "tweepy==3.10.0",
+    "unidecode==1.3.4",
+    "uwuipy==0.1.5",
+    "validators==0.19.0",
+    "venusian==3.0.0",
+    "watchdog==2.1.6",
+    "wrapt==1.12.1",
+    "yarl==1.7.2",
+    "youtube-search==2.1.0",
+    "youtube-transcript-api>=1.1.0",
+]
+
 [tool.isort]
 line_length = 80
 multi_line_output = 3
@@ -5,6 +121,22 @@ include_trailing_comma = true
 use_parentheses = true
 known_first_party = ["cloudbot", "plugins", "tests"]
 float_to_top = true
+
+[dependency-groups]
+dev = [
+    "freezegun==1.4.0",
+    "mypy==1.9.0",
+    "pre-commit==3.3.3",
+    "pylint==3.1.0",
+    "pytest==8.1.1",
+    "pytest-asyncio==0.20.3",
+    "pytest-cov==4.1.0",
+    "pytest-random-order==1.1.1",
+    "pytest-pythonhashseed==1.0.1",
+    "responses==0.25.0",
+    "typing-extensions==4.10.0",
+    "types-requests~=2.32.4.20250611",
+]
 
 [tool.black]
 line-length = 80
@@ -27,6 +159,9 @@ exclude = '''
   )/
 )
 '''
+
+[tool.uv]
+package = false
 
 [tool.pylint.main]
 analyse-fallback-blocks = true
@@ -107,7 +242,6 @@ check_untyped_defs = true
 show_error_codes = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-# strict_equality = true
 
 [[tool.mypy.overrides]]
 module = 'cloudbot.*'

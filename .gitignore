@@ -66,3 +66,8 @@ config.json
 .mypy_cache/
 .DS_Store
 .venv
+
+# wiki h4ks
+apicache/*
+pywikibot-*
+throttle.ctrl

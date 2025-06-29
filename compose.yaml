@@ -1,0 +1,6 @@
+services:
+  app:
+    build: .
+    restart: always
+    volumes:
+      - ./config.json:/app/config.json

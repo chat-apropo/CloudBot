@@ -8,11 +8,8 @@ RUN \
     enchant-2 \
     libenchant-2-2
 
+COPY --from=ghcr.io/astral-sh/uv:0.7.17 /uv /uvx /bin/
 COPY . /app
-RUN \
-  pip install --no-cache-dir -r requirements.txt && \
-  pip install --no-cache-dir -r my_requirements.txt && \
-  # Hack fix for youtube_transcript_api
-  pip install youtube_transcript_api==1.1.0
+RUN uv sync
 
-CMD ["python", "-m", "cloudbot"]
+CMD ["uv", "run", "python", "-m", "cloudbot"]
