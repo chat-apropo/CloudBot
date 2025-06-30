@@ -85,14 +85,14 @@ class PollinationsClient:
             "modalities": ["text", "audio"],
             "audio": {"voice": voice or "alloy", "format": "mp3"},
             "messages": messages,
-            "private": False,
+            "private": True,
         }
         response = self.session.post(url, json=data, stream=True)
         return response
 
     def generate_text_openai(self, messages: list[dict], model: str | None = None) -> dict:
         url = f"{TEXT_API}/openai"
-        data = {"messages": messages, "model": model or "mistral:latest"}
+        data = {"messages": messages, "model": model or "mistral:latest", "private": True}
         response = self.session.post(url, json=data)
         response.raise_for_status()
         return response.json()
