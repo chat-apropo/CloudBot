@@ -1,4 +1,3 @@
-import base64
 import re
 import tempfile
 from collections import deque
@@ -43,9 +42,9 @@ class Model:
     community: bool
     input_modalities: list[str]
     output_modalities: list[str]
-    pricing: dict[str, float]
     vision: bool
     audio: bool
+    pricing: dict[str, float] | None = None
     tier: str | None = None
     aliases: str | None = None
     tools: list[str] | None = None
@@ -53,6 +52,7 @@ class Model:
     uncensored: bool = False
     voices: list[str] | None = None
     search: bool = False
+    maxInputChars: int | None = None
 
 
 class PollinationsClient:
@@ -78,21 +78,21 @@ class PollinationsClient:
         response.raise_for_status()
         return response
 
-    def generate_audio(self, messages: list[dict], voice: str | None = None) -> requests.Response:
-        url = f"{TEXT_API}/openai"
-        data = {
+    def generate_audio(self, request: str, voice: str | None = None) -> requests.Response:
+        url = f"{TEXT_API}/{request}"
+        params = {
             "model": "openai-audio",
-            "modalities": ["text", "audio"],
-            "audio": {"voice": voice or "alloy", "format": "mp3"},
-            "messages": messages,
-            "private": True,
+            # "modalities": ["text", "audio"],
+            "voice": voice or "alloy",
+            # "format": "mp3",
+            # "private": True,
         }
-        response = self.session.post(url, json=data, stream=True)
+        response = self.session.get(url, params=params)
         return response
 
     def generate_text_openai(self, messages: list[dict], model: str | None = None) -> dict:
         url = f"{TEXT_API}/openai"
-        data = {"messages": messages, "model": model or "mistral:latest", "private": True}
+        data = {"messages": messages, "model": model or "openai", "private": True}
         response = self.session.post(url, json=data)
         response.raise_for_status()
         return response.json()
@@ -183,27 +183,18 @@ def plimage_command(text: str, nick: str, chan: str) -> str:
 @hook.command("plaudio")
 def plaudio_command(text: str, nick: str, chan: str) -> str:
     """<[voice] prompt> - Generate audio from text using Pollinations.AI. Use '.plaudio list' to see available voices."""
-    global pollinations_messages_cache
     if text.strip().lower() == "list":
         return "Available voices: " + ", ".join(VOICES)
 
     voice, prompt = parse_args(text, VOICES)
 
-    channick = (chan, nick)
-    if channick not in pollinations_messages_cache:
-        pollinations_messages_cache[channick] = deque(maxlen=MAX_HISTORY_LENGTH)
-
     client = get_client()
-    messages = [msg.as_dict() for msg in pollinations_messages_cache[channick]]
-    messages.append(Message(role="user", content=prompt).as_dict())
 
-    audio_response = client.generate_audio(messages, voice)
+    audio_response = client.generate_audio(prompt, voice)
     if audio_response.status_code != 200:
         return f"Error generating audio: {audio_response.text}"
 
-    audio_json = audio_response.json()
-    audio_b64 = audio_json["choices"][0]["message"]["audio"]["data"]
-    audio_bytes = base64.b64decode(audio_b64)
+    audio_bytes = audio_response.content
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
         f.write(audio_bytes)
         f.flush()

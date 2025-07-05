@@ -71,9 +71,7 @@ def handle_chainallow_add(args, notice_doc, hook_name, db):
         values["allowed"] = allow
 
     updated = True
-    res = db.execute(
-        commands.update().values(**values).where(commands.c.hook == hook_name)
-    )
+    res = db.execute(commands.update().values(**values).where(commands.c.hook == hook_name))
     if res.rowcount == 0:
         updated = False
         db.execute(commands.insert().values(**values))
@@ -81,9 +79,7 @@ def handle_chainallow_add(args, notice_doc, hook_name, db):
     db.commit()
     load_cache(db)
     if updated:
-        return "Updated state of '{}' in chainallow to allowed={}".format(
-            hook_name, allow_cache.get(hook_name)
-        )
+        return "Updated state of '{}' in chainallow to allowed={}".format(hook_name, allow_cache.get(hook_name))
 
     if allow_cache.get(hook_name):
         return f"Added '{hook_name}' as an allowed command"
@@ -162,21 +158,13 @@ async def chain(text, bot, event):
             return f"Unable to find command '{name}'"
 
         if not is_hook_allowed(_hook):
-            event.notice(
-                "'{}' may not be used in command piping".format(
-                    format_hook_name(_hook)
-                )
-            )
+            event.notice("'{}' may not be used in command piping".format(format_hook_name(_hook)))
             return
 
         if _hook.permissions:
             allowed = await event.check_permissions(_hook.permissions)
             if not allowed:
-                event.notice(
-                    "Sorry, you are not allowed to use '{}'.".format(
-                        format_hook_name(_hook)
-                    )
-                )
+                event.notice("Sorry, you are not allowed to use '{}'.".format(format_hook_name(_hook)))
                 return
 
     buffer = ""
@@ -243,21 +231,15 @@ async def chain(text, bot, event):
         out_func(buffer, target=_target)
 
 
-@hook.command(autohelp=False)
-def chainlist(bot, event):
+@hook.command("chainlist", autohelp=False)
+def chainlist(bot, event, reply):
     """- Returns the list of commands allowed in 'chain'"""
-    hooks = [
-        get_hook_from_command(bot, name)
-        for name, allowed in allow_cache.items()
-        if allowed
-    ]
-    s = ", ".join(
-        sorted(
-            itertools.chain.from_iterable(
-                h.aliases for h in hooks if h is not None
-            )
-        )
-    )
+    hooks = [get_hook_from_command(bot, name) for name, allowed in allow_cache.items() if allowed]
+    s = ", ".join(sorted(itertools.chain.from_iterable(h.aliases for h in hooks if h is not None)))
 
-    for part in chunk_str(s):
+    chunks = chunk_str(s)
+    for part in chunks:
         event.notice(part)
+
+    if not chunks:
+        event.notice("No commands allowed in 'chain'.")
