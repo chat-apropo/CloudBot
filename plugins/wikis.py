@@ -53,6 +53,7 @@ WIKI_APIS = {
     ("zncbouncer", "znc"): "https://wiki.znc.in/api.php",
     ("unrealircd", "wu"): "https://www.unrealircd.org/docwiki/api.php",
     ("wikih4ks", "wh"): "https://wiki.h4ks.com/api.php",
+    ("wminecraft", "wmc"): "https://minecraft.wiki/api.php",
 }
 
 state = {}
