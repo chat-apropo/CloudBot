@@ -97,7 +97,7 @@ class VibeClient:
         return self._handle_response(response)
 
 
-@hook.command("vibegame", autohelp=False)
+@hook.command("vibegame", "vibefind", "vibesearch", autohelp=False)
 def vibegame(text: str, chan: str, nick: str, reply) -> None | str:
     """<name> - Get a vibe game"""
     if not text.strip():
