@@ -14,7 +14,7 @@ import inspect
 import time
 import typing
 import warnings
-from math import floor, log
+from decimal import Decimal
 from numbers import Real
 from operator import itemgetter
 from threading import RLock
@@ -48,9 +48,7 @@ class UnknownFiatCurrencyError(APIError):
 
 
 class APIResponse:
-    def __init__(
-        self, api, data: "UntypedResponse", response: Response
-    ) -> None:
+    def __init__(self, api, data: "UntypedResponse", response: Response) -> None:
         self.api = api
         self.data = data
         self.response = response
@@ -88,9 +86,7 @@ class SchemaMeta(type):
         if members.setdefault("_abstract", False):
             super_fields = ()
             for base in bases:
-                if not getattr(base, "_abstract", False) and isinstance(
-                    base, cls
-                ):
+                if not getattr(base, "_abstract", False) and isinstance(base, cls):
                     super_fields = getattr(base, "_fields")
                     break
 
@@ -105,7 +101,6 @@ T = TypeVar("T", bound="Schema")
 
 
 class Schema(metaclass=SchemaMeta):
-    # noinspection PyUnusedName
     _abstract = True
     _fields = ()
 
@@ -149,10 +144,7 @@ class UntypedResponse(APIRequestResponse):
 
 
 class Platform(Schema):
-    # noinspection PyShadowingBuiltins
-    def __init__(
-        self, id: int, name: str, symbol: str, slug: str, token_address: str
-    ):
+    def __init__(self, id: int, name: str, symbol: str, slug: str, token_address: str):
         super().__init__()
         self.id = id
         self.name = name
@@ -193,7 +185,6 @@ class Quote(Schema):
 
 
 class CryptoCurrency(Schema):
-    # noinspection PyShadowingBuiltins
     def __init__(
         self,
         id: int,
@@ -237,7 +228,6 @@ class QuoteRequestResponse(APIRequestResponse):
 
 
 class FiatCurrency(Schema):
-    # noinspection PyShadowingBuiltins
     def __init__(self, id: int, name: str, sign: str, symbol: str):
         super().__init__()
         self.id = id
@@ -251,13 +241,10 @@ class FiatCurrencyMap(APIRequestResponse):
         super().__init__(status)
         self.data = data
 
-        self.symbols = {
-            currency.symbol: currency.sign for currency in self.data
-        }
+        self.symbols = {currency.symbol: currency.sign for currency in self.data}
 
 
 class CryptoCurrencyEntry(Schema):
-    # noinspection PyShadowingBuiltins
     def __init__(
         self,
         id: int,
@@ -290,9 +277,7 @@ class CryptoCurrencyMap(APIRequestResponse):
         self.names = {currency.symbol for currency in self.data}
 
 
-BAD_FIELD_TYPE_MSG = (
-    "field {field!r} expected type {exp_type!r}, got type {act_type!r}"
-)
+BAD_FIELD_TYPE_MSG = "field {field!r} expected type {exp_type!r}, got type {act_type!r}"
 
 
 def sentinel(name: str):
@@ -339,6 +324,23 @@ def _hydrate_object(_value, _cls):
     if _cls is Any:
         return _value
 
+    # Cast digits to str if possible
+    if isinstance(_value, (int, float, Decimal)) and _cls is str and str(_value).replace(".", "", 1).isdigit():
+        return str(_value)
+
+    # Cast str to int or float if possible
+    if isinstance(_value, str):
+        if _cls is int:
+            try:
+                return int(_value)
+            except ValueError:
+                pass
+        elif _cls is float:
+            try:
+                return float(_value)
+            except ValueError:
+                pass
+
     if isinstance(_cls, type) and issubclass(_cls, Schema):
         _assert_type(_value, dict)
         return read_data(_value, _cls)
@@ -354,12 +356,7 @@ def _hydrate_object(_value, _cls):
         if issubclass(typing_cls, dict):
             _assert_type(_value, dict, _cls)
 
-            return {
-                _hydrate_object(k, type_args[0]): _hydrate_object(
-                    v, type_args[1]
-                )
-                for k, v in _value.items()
-            }
+            return {_hydrate_object(k, type_args[0]): _hydrate_object(v, type_args[1]) for k, v in _value.items()}
 
         # pragma: no cover
         raise TypeError(f"Can't match typing alias {typing_cls!r}")
@@ -395,27 +392,17 @@ def read_data(data: Dict, schema_cls: Type[T]) -> T:
             try:
                 out[name] = _hydrate_object(value, param_type)
             except TypeAssertError as e:
-                raise TypeError(
-                    BAD_FIELD_TYPE_MSG.format(
-                        field=name, exp_type=e.cls, act_type=type(e.obj)
-                    )
-                ) from e
+                raise TypeError(BAD_FIELD_TYPE_MSG.format(field=name, exp_type=e.cls, act_type=type(e.obj))) from e
         except (MissingSchemaField, TypeAssertError, ParseError) as e:
-            raise ParseError(
-                f"Unable to parse schema {schema_cls.__name__!r}"
-            ) from e
+            raise ParseError(f"Unable to parse schema {schema_cls.__name__!r}") from e
 
     obj = schema_cls(**out)
 
-    obj.unknown_fields.update(
-        {key: data[key] for key in data if key not in field_names}
-    )
+    obj.unknown_fields.update({key: data[key] for key in data if key not in field_names})
 
     if obj.unknown_fields:
         warnings.warn(
-            "Unknown fields: {} while parsing schema {!r}".format(
-                list(obj.unknown_fields.keys()), schema_cls.__name__
-            )
+            "Unknown fields: {} while parsing schema {!r}".format(list(obj.unknown_fields.keys()), schema_cls.__name__)
         )
 
     return obj
@@ -518,9 +505,7 @@ class CoinMarketCapAPI:
         return out
 
     def get_fiat_currency_map(self) -> FiatCurrencyMap:
-        return self._request_cache(
-            "fiat_currency_map", "fiat/map", FiatCurrencyMap, 86400
-        )
+        return self._request_cache("fiat_currency_map", "fiat/map", FiatCurrencyMap, 86400)
 
     def get_crypto_currency_map(self) -> CryptoCurrencyMap:
         return self._request_cache(
@@ -530,9 +515,7 @@ class CoinMarketCapAPI:
             86400,
         )
 
-    def _request_cache(
-        self, name: str, endpoint: str, fmt: Type[T], ttl: int
-    ) -> T:
+    def _request_cache(self, name: str, endpoint: str, fmt: Type[T], ttl: int) -> T:
         out = self.cache.get(name)
         if out is None:
             currencies = self.request(endpoint).data.cast_to(fmt)
@@ -542,9 +525,7 @@ class CoinMarketCapAPI:
 
     def request(self, endpoint: str, **params) -> APIResponse:
         url = str(self.api_url / endpoint)
-        with requests.get(
-            url, headers=self.request_headers, params=params
-        ) as response:
+        with requests.get(url, headers=self.request_headers, params=params) as response:
             api_response = APIResponse.from_response(self, response)
             self.check(api_response)
 
@@ -628,9 +609,9 @@ def crypto_command(text, event):
     quote = data.quote[currency]
     change = cast(Union[int, float], quote.percent_change_24h)
     if change > 0:
-        change_str = f"$(dark_green)+{change}%$(clear)"
+        change_str = colors.parse("$(dark_green)+{}%$(clear)").format(change)
     elif change < 0:
-        change_str = f"$(dark_red){change}%$(clear)"
+        change_str = colors.parse("$(dark_red){}%$(clear)").format(change)
     else:
         change_str = f"{change}%"
 
@@ -642,22 +623,15 @@ def crypto_command(text, event):
     else:
         btc = ""
 
-    price = float(quote.price)
-    precision = max(
-        floor(log(1 / price if price != 0 else 0.01) / log(10)) + 4, 2
-    )
-    return colors.parse(
-        (
-            "{} ({}) // $(orange){}{:,.{}f}$(clear) {} " + btc + "// {} change"
-        ).format(
-            data.symbol,
-            data.slug,
-            currency_sign,
-            price,
-            precision,
-            currency,
-            change_str,
-        )
+    num_format = format_price(quote.price)
+
+    return colors.parse("{} ({}) // $(orange){}{}$(clear) {} " + btc + "// {} change").format(
+        data.symbol,
+        data.slug,
+        currency_sign,
+        num_format,
+        currency,
+        change_str,
     )
 
 
