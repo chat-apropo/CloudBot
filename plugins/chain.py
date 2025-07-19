@@ -172,11 +172,20 @@ async def chain(text, bot, event):
     out_func = None
     _target = None
 
+    def add_to_buffer(text: str | list | tuple):
+        nonlocal buffer
+        if isinstance(text, str):
+            buffer += (" " if buffer else "") + text
+        elif isinstance(text, list) or isinstance(text, tuple):
+            buffer += (" " if buffer else "") + " ".join(text)
+        else:
+            raise TypeError("Expected str, list, or tuple, got {}".format(type(text).__name__))
+
     def message(msg, target=None):
         nonlocal buffer
         nonlocal out_func
         nonlocal _target
-        buffer += (" " if buffer else "") + msg
+        add_to_buffer(msg)
         if out_func is None:
             out_func = event.message
 
@@ -186,7 +195,7 @@ async def chain(text, bot, event):
         nonlocal buffer
         nonlocal out_func
         nonlocal _target
-        buffer += (" " if buffer else "") + " ".join(messages)
+        add_to_buffer(messages)
         if out_func is None:
             out_func = event.reply
 
@@ -196,7 +205,7 @@ async def chain(text, bot, event):
         nonlocal buffer
         nonlocal out_func
         nonlocal _target
-        buffer += (" " if buffer else "") + msg
+        add_to_buffer(msg)
         if out_func is None:
             out_func = event.action
 
@@ -221,8 +230,7 @@ async def chain(text, bot, event):
         if res:
             if out_func is None:
                 out_func = event.reply
-
-            buffer += (" " if buffer else "") + res
+            add_to_buffer(res)
 
     if buffer:
         if out_func is None:
